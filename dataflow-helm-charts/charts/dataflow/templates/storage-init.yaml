@@ -1,0 +1,37 @@
+{{- if .Values.rustfs.enabled }}
+{{- $root := urlParse .Values.lake.root }}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ include "dataflow.name" . }}-storage-init-{{ .Release.Revision }}
+  namespace: {{ include "dataflow.dataNamespace" . }}
+spec:
+  ttlSecondsAfterFinished: 600
+  backoffLimit: 3
+  template:
+    spec:
+      automountServiceAccountToken: false
+      restartPolicy: OnFailure
+      containers:
+        - name: buckets
+          image: curlimages/curl:8.11.1
+          command: [/bin/sh, -ec]
+          args:
+            - |
+              until curl -fsS "$ENDPOINT/health" >/dev/null; do sleep 2; done
+              s3() { curl -fsS --aws-sigv4 aws:amz:us-east-1:s3 --user "$LAKE_ACCESS_KEY:$LAKE_SECRET_KEY" "$@"; }
+              for bucket in $BUCKETS; do
+                s3 -o /dev/null -I "$ENDPOINT/$bucket" 2>/dev/null || s3 -X PUT "$ENDPOINT/$bucket"
+              done
+              {{- if eq $root.scheme "s3a" }}
+              s3 -X PUT --data-binary '' "$ENDPOINT/{{ $root.host }}/{{ if trimAll "/" $root.path }}{{ trimAll "/" $root.path }}/{{ end }}spark-events/.keep"
+              {{- end }}
+          envFrom:
+            - secretRef: {name: {{ .Values.lakeSecretName }}}
+          env:
+            - {name: ENDPOINT, value: {{ include "dataflow.endpoint" . | quote }}}
+            - {name: BUCKETS, value: {{ printf "%s %s" (ternary $root.host "" (eq $root.scheme "s3a")) .Values.releases.bucket | quote }}}
+          resources:
+            requests: {cpu: 50m, memory: 32Mi}
+            limits: {cpu: 200m, memory: 64Mi}
+{{- end }}

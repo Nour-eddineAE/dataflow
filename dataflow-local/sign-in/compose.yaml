@@ -1,0 +1,130 @@
+x-sign-in-proxy: &sign-in-proxy
+  image: quay.io/oauth2-proxy/oauth2-proxy:${OAUTH2_PROXY_VERSION}
+  mem_limit: 64m
+  volumes:
+    - ./proxy-templates:/templates:ro
+  environment: &sign-in-proxy-environment
+    OAUTH2_PROXY_HTTP_ADDRESS: 0.0.0.0:4180
+    OAUTH2_PROXY_PROVIDER: oidc
+    OAUTH2_PROXY_OIDC_ISSUER_URL: ${ISSUER}
+    OAUTH2_PROXY_SKIP_OIDC_DISCOVERY: "true"
+    OAUTH2_PROXY_LOGIN_URL: ${ISSUER}/protocol/openid-connect/auth
+    OAUTH2_PROXY_REDEEM_URL: http://keycloak:8080/realms/dataflow/protocol/openid-connect/token
+    OAUTH2_PROXY_OIDC_JWKS_URL: http://keycloak:8080/realms/dataflow/protocol/openid-connect/certs
+    OAUTH2_PROXY_CLIENT_ID: oauth2-proxy
+    OAUTH2_PROXY_CLIENT_SECRET: ${SIGN_IN_PROXY_CLIENT_SECRET}
+    OAUTH2_PROXY_COOKIE_SECRET: ${SIGN_IN_PROXY_COOKIE_SECRET}
+    OAUTH2_PROXY_CODE_CHALLENGE_METHOD: S256
+    OAUTH2_PROXY_SCOPE: openid profile email
+    OAUTH2_PROXY_OIDC_GROUPS_CLAIM: groups
+    OAUTH2_PROXY_ALLOWED_GROUPS: admins
+    OAUTH2_PROXY_EMAIL_DOMAINS: "*"
+    OAUTH2_PROXY_COOKIE_SECURE: "false"
+    OAUTH2_PROXY_SKIP_PROVIDER_BUTTON: "true"
+    OAUTH2_PROXY_CUSTOM_TEMPLATES_DIR: /templates
+
+services:
+  keycloak:
+    image: quay.io/keycloak/keycloak:${KEYCLOAK_VERSION}
+    container_name: dataflow-keycloak
+    depends_on:
+      databases:
+        condition: service_completed_successfully
+    command:
+      - start-dev
+      - --import-realm
+      - --http-port=8080
+      - --hostname=http://localhost:${KEYCLOAK_PORT}
+      - --hostname-backchannel-dynamic=true
+      - --health-enabled=true
+    environment:
+      KC_DB: postgres
+      KC_DB_URL: jdbc:postgresql://postgres:5432/keycloak
+      KC_DB_USERNAME: ${POSTGRES_USER}
+      KC_DB_PASSWORD: ${POSTGRES_PASSWORD}
+      KC_BOOTSTRAP_ADMIN_USERNAME: admin
+      KC_BOOTSTRAP_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD}
+      JAVA_OPTS_KC_HEAP: -XX:MaxRAMPercentage=40 -XX:-UseG1GC -XX:+UseSerialGC
+    volumes:
+      - ./realm:/opt/keycloak/data/import:ro
+      - ./themes/dataflow:/opt/keycloak/themes/dataflow:ro
+    ports:
+      - "${KEYCLOAK_PORT}:8080"
+    healthcheck:
+      test: [ "CMD-SHELL", "exec 3<>/dev/tcp/localhost/9000 && printf 'GET /health/ready HTTP/1.0\\r\\n\\r\\n' >&3 && grep -q UP <&3" ]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+      start_period: 30s
+    mem_limit: ${KEYCLOAK_MEMORY}
+
+  keycloak-init:
+    image: quay.io/keycloak/keycloak:${KEYCLOAK_VERSION}
+    container_name: dataflow-keycloak-init
+    depends_on:
+      keycloak:
+        condition: service_healthy
+    entrypoint: [ "/bin/bash", "/init/keycloak-init.sh" ]
+    environment:
+      KEYCLOAK_URL: http://keycloak:8080
+      KEYCLOAK_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD}
+      PERSON_ID: ${PERSON_ID}
+      PERSON_NAME: ${PERSON_NAME}
+      PERSON_EMAIL: ${PERSON_EMAIL}
+      PERSON_INITIAL_PASSWORD: ${PERSON_INITIAL_PASSWORD}
+      RUSTFS_CONSOLE_CLIENT_SECRET: ${RUSTFS_CONSOLE_CLIENT_SECRET}
+      SIGN_IN_PROXY_CLIENT_SECRET: ${SIGN_IN_PROXY_CLIENT_SECRET}
+      WORKSPACE_URL: ${WORKSPACE_URL}
+      TOWER_URL: http://localhost:${TOWER_PORT}
+      MAILPIT_URL: http://localhost:${MAILPIT_PORT}
+      SPARK_HISTORY_URL: http://localhost:${SPARK_HISTORY_PORT}
+      GRAFANA_URL: http://localhost:${GRAFANA_PORT}
+      RUSTFS_URL: http://localhost:${RUSTFS_PORT}
+      RUSTFS_CONSOLE_URL: http://localhost:${RUSTFS_CONSOLE_PORT}
+      SESSION_IDLE_SECONDS: ${SESSION_IDLE_SECONDS}
+      SESSION_MAX_SECONDS: ${SESSION_MAX_SECONDS}
+      REMEMBER_ME_IDLE_SECONDS: ${REMEMBER_ME_IDLE_SECONDS}
+      REMEMBER_ME_MAX_SECONDS: ${REMEMBER_ME_MAX_SECONDS}
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
+      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
+      GOOGLE_HOSTED_DOMAIN: ${GOOGLE_HOSTED_DOMAIN:-}
+    volumes:
+      - ./keycloak-init.sh:/init/keycloak-init.sh:ro
+      - ./clients:/clients:ro
+
+  tower-sign-in:
+    <<: *sign-in-proxy
+    container_name: dataflow-tower-sign-in
+    depends_on: [ tower-webserver, keycloak-init ]
+    environment:
+      <<: *sign-in-proxy-environment
+      OAUTH2_PROXY_UPSTREAMS: http://tower-webserver:3000
+      OAUTH2_PROXY_REDIRECT_URL: http://localhost:${TOWER_PORT}/oauth2/callback
+      OAUTH2_PROXY_COOKIE_NAME: _dataflow_tower
+    ports:
+      - "${TOWER_PORT}:4180"
+
+  mailpit-sign-in:
+    <<: *sign-in-proxy
+    container_name: dataflow-mailpit-sign-in
+    depends_on: [ mailpit, keycloak-init ]
+    environment:
+      <<: *sign-in-proxy-environment
+      OAUTH2_PROXY_UPSTREAMS: http://mailpit:8025
+      OAUTH2_PROXY_REDIRECT_URL: http://localhost:${MAILPIT_PORT}/oauth2/callback
+      OAUTH2_PROXY_COOKIE_NAME: _dataflow_mail
+    ports:
+      - "${MAILPIT_PORT}:4180"
+
+  spark-history-sign-in:
+    <<: *sign-in-proxy
+    profiles: [ "spark-history" ]
+    container_name: dataflow-spark-history-sign-in
+    depends_on: [ spark-history, keycloak-init ]
+    environment:
+      <<: *sign-in-proxy-environment
+      OAUTH2_PROXY_UPSTREAMS: http://spark-history:18080
+      OAUTH2_PROXY_REDIRECT_URL: http://localhost:${SPARK_HISTORY_PORT}/oauth2/callback
+      OAUTH2_PROXY_COOKIE_NAME: _dataflow_spark
+    ports:
+      - "${SPARK_HISTORY_PORT}:4180"

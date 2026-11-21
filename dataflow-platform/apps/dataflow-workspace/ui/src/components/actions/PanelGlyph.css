@@ -1,0 +1,60 @@
+.df-panel-glyph-panel {
+    opacity: 0.22;
+    transform-box: fill-box;
+}
+
+.df-panel-glyph-panel, .df-panel-glyph-edge, .df-panel-glyph-chevron {
+    transition: transform var(--df-motion-slow) var(--df-ease), opacity var(--df-motion-base) ease;
+}
+
+.df-panel-glyph-chevron {
+    transform-box: fill-box;
+    transform-origin: center;
+}
+
+.df-panel-glyph[data-side='left'] .df-panel-glyph-panel {
+    transform-origin: left center;
+}
+
+.df-panel-glyph[data-side='right'] .df-panel-glyph-panel {
+    transform-origin: right center;
+}
+
+.df-panel-glyph[data-side='bottom'] .df-panel-glyph-panel {
+    transform-origin: center bottom;
+}
+
+.df-panel-glyph[data-side='left'][data-collapsed] .df-panel-glyph-panel,
+.df-panel-glyph[data-side='right'][data-collapsed] .df-panel-glyph-panel {
+    transform: scaleX(0.38);
+}
+
+.df-panel-glyph[data-side='bottom'][data-collapsed] .df-panel-glyph-panel {
+    transform: scaleY(0.4);
+}
+
+.df-panel-glyph[data-side='left'][data-collapsed] .df-panel-glyph-edge {
+    transform: translateX(-3.2px);
+}
+
+.df-panel-glyph[data-side='right'][data-collapsed] .df-panel-glyph-edge {
+    transform: translateX(3.2px);
+}
+
+.df-panel-glyph[data-side='bottom'][data-collapsed] .df-panel-glyph-edge {
+    transform: translateY(2.5px);
+}
+
+.df-panel-glyph[data-collapsed] .df-panel-glyph-chevron {
+    transform: rotate(180deg);
+}
+
+.df-icon-action:hover .df-panel-glyph-panel {
+    opacity: 0.32;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .df-panel-glyph-panel, .df-panel-glyph-edge, .df-panel-glyph-chevron {
+        transition: none;
+    }
+}

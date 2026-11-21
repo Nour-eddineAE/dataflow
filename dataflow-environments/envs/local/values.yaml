@@ -1,0 +1,33 @@
+lake:
+  root: s3a://lake
+images:
+  workspace: dataflow-workspace:latest
+  engine: dataflow-engine-k8s:latest
+spark:
+  singlePod: true
+  driverMemory: 1080m
+  memoryOverhead: 720m
+  driverCores: 4
+  cpuRequest: 250m
+dagster:
+  concurrency:
+    runs: {maxConcurrentRuns: 1}
+rustfs:
+  env:
+    RUSTFS_RUNTIME_WORKER_THREADS: "2"
+    RUSTFS_RUNTIME_MAX_BLOCKING_THREADS: "16"
+    RUSTFS_RUNTIME_FSYNC_BLOCKING_THREADS: "4"
+    RUSTFS_RUNTIME_THREAD_KEEP_ALIVE: "10"
+    RUSTFS_OBJECT_DATA_CACHE_ENABLE: "false"
+    RUSTFS_GET_OBJECT_METADATA_CACHE_MAX_ENTRIES: "256"
+    RUSTFS_OBJECT_MAX_CONCURRENT_DISK_READS: "16"
+    RUSTFS_ALLOCATOR_RECLAIM_INTERVAL_SECS: "10"
+    MIMALLOC_PURGE_DELAY: "0"
+    MIMALLOC_ARENA_EAGER_COMMIT: "0"
+  resources:
+    requests: {cpu: 100m, memory: 128Mi}
+    limits: {cpu: "1", memory: 320Mi}
+localPorts:
+  enabled: true
+quota:
+  enabled: false

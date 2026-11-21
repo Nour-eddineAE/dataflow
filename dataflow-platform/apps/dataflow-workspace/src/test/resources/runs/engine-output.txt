@@ -1,0 +1,8 @@
+NOTE: Picked up JDK_JAVA_OPTIONS: --add-opens=java.base/java.lang=ALL-UNNAMED
+
+{"@timestamp":"2026-10-25T02:43:56.776Z","@version":"1","message":"Started EngineApplication in 1.916 seconds","logger_name":"com.dataflow.engine.EngineApplication","thread_name":"main","level":"INFO","level_value":20000}
+
+{"__dagster_pipes_version":"0.1","method":"opened","params":{}}
+{"@timestamp":"2026-10-25T02:44:10.827Z","@version":"1","message":"Flow silver COMPLETED in 4351 ms: 9984 rows in, 9984 out, 0 dropped","logger_name":"com.dataflow.engine.core.run.PipelineRun","thread_name":"main","level":"INFO","level_value":20000,"dataset":"earthquakes","flow":"silver","runId":"1f5022d6"}
+{"@timestamp":"2026-10-25T02:44:11.002Z","@version":"1","message":"Flow history FAILED","logger_name":"com.dataflow.engine.core.run.PipelineRun","thread_name":"main","level":"ERROR","level_value":40000,"stack_trace":"java.lang.IllegalStateException: boom\n\tat Flow.run(Flow.java:1)","flow":"history"}
+Exception in thread "shutdown" plain text

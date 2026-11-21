@@ -1,0 +1,26 @@
+query Automation($selector: RepositorySelector!) {
+  schedulesOrError(repositorySelector: $selector) {
+    __typename
+    ... on Schedules {
+      results {
+        name
+        cronSchedule
+        executionTimezone
+        scheduleState { id status ticks(limit: 1) { status timestamp skipReason error { message } } }
+        futureTicks(limit: 1) { results { timestamp } }
+      }
+    }
+    ... on Error { message }
+  }
+  sensorsOrError(repositorySelector: $selector) {
+    __typename
+    ... on Sensors {
+      results {
+        name
+        minIntervalSeconds
+        sensorState { id status ticks(limit: 1) { status timestamp skipReason error { message } } }
+      }
+    }
+    ... on Error { message }
+  }
+}

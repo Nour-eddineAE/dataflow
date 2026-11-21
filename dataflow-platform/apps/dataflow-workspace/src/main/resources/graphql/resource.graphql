@@ -1,0 +1,9 @@
+query Resource($selector: ResourceSelector!) {
+  topLevelResourceDetailsOrError(resourceSelector: $selector) {
+    __typename
+    ... on ResourceDetails {
+      configFields { name description configTypeKey defaultValueAsJson }
+    }
+    ... on Error { message }
+  }
+}

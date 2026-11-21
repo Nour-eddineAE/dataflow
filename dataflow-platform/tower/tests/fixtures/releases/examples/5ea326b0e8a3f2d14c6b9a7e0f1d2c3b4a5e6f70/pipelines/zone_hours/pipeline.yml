@@ -1,0 +1,42 @@
+dataset: zone_hours
+version: 3
+owner: analytics
+description: Trips per borough and hour, from two other pipelines
+
+inputs:
+  trips: taxi_trips.current
+  zones: taxi_trips.reference.taxi_zones
+  quakes: earthquakes.gold.daily_activity
+
+gold:
+  - name: zoned_trips
+    from: trips
+    materialize: false
+    steps:
+      - join: { with: zones, type: left, on: { pickupLocationId: LocationID }, prefix: zone }
+      - derive: { hour: "hour(pickupTime)", day: "to_date(pickupTime)" }
+
+  - name: borough_hours
+    from: zoned_trips
+    steps:
+      - filter: "zoneBorough IS NOT NULL"
+      - aggregate:
+          by: [zoneBorough, hour]
+          measures: { trips: "count(*)", revenue: "round(sum(fareAmount), 2)" }
+
+  - name: busiest
+    sql: |
+      WITH ranked AS (SELECT *, rank() OVER (ORDER BY trips DESC) AS position FROM borough_hours)
+      SELECT * FROM ranked WHERE position <= 10 AND hour IN (SELECT hour(day) FROM quakes)
+
+  - name: trip_days
+    from: zoned_trips
+    steps:
+      - dedupe: { keys: [tripId], latest-by: pickupTime }
+      - select: [tripId, "day AS tripDay"]
+      - rename: { tripDay: day }
+      - union: [zoned_trips]
+      - drop: [tripId]
+
+serve:
+  - { from: gold.borough_hours, table: borough_hours, mode: view }

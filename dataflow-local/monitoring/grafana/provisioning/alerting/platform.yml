@@ -1,0 +1,82 @@
+apiVersion: 1
+
+groups:
+  - orgId: 1
+    name: platform-health
+    folder: Platform
+    interval: 1m
+    rules:
+      - uid: platform-copy-refresh-failing
+        title: Published copy not refreshing
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange: { from: 600, to: 0 }
+            datasourceUid: dataflow-clickhouse
+            model:
+              refId: A
+              editorType: sql
+              format: 1
+              queryType: table
+              rawSql: |
+                SELECT database || '.' || replaceRegexpOne(view, '_refresh$', '') AS copy, 1 AS failing
+                FROM system.view_refreshes
+                WHERE exception != ''
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              refId: C
+              type: threshold
+              expression: A
+              conditions:
+                - evaluator: { type: gt, params: [0] }
+        noDataState: OK
+        execErrState: Error
+        for: 0m
+        labels:
+          severity: warning
+          team: dataflow
+        annotations:
+          summary: "{{ $labels.copy }} failed its last refresh"
+          description: >-
+            The refreshable view that rebuilds this published copy failed; the copy keeps its previous rows. The error is in
+            system.view_refreshes (column exception). The next pipeline run recreates it if its columns changed.
+
+      - uid: platform-query-errors
+        title: Many failing queries in ClickHouse
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange: { from: 900, to: 0 }
+            datasourceUid: dataflow-clickhouse
+            model:
+              refId: A
+              editorType: sql
+              format: 1
+              queryType: table
+              rawSql: |
+                SELECT user, count() AS errors
+                FROM system.query_log
+                WHERE event_time > now() - INTERVAL 15 MINUTE
+                  AND type IN ('ExceptionBeforeStart', 'ExceptionWhileProcessing')
+                  AND user != 'dataflow_people'
+                GROUP BY user
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              refId: C
+              type: threshold
+              expression: A
+              conditions:
+                - evaluator: { type: gt, params: [20] }
+        noDataState: OK
+        execErrState: Error
+        for: 5m
+        labels:
+          severity: warning
+          team: dataflow
+        annotations:
+          summary: "{{ with $values.A }}{{ humanize .Value }}{{ end }} failing queries by {{ $labels.user }} in 15 minutes"
+          description: >-
+            The platform's own queries (catalog, boards, engine serving flow) keep failing: a lake table may be unreadable or a
+            view broken. People's queries (user dataflow_people) are left out: their mistakes are not outages.

@@ -1,0 +1,105 @@
+spring:
+  application:
+    name: dataflow-engine
+  main:
+    web-application-type: none
+    banner-mode: "off"
+
+jasypt:
+  encryptor:
+    algorithm: ${env.jasypt.algorithm}
+    iv-generator-classname: ${env.jasypt.iv-generator}
+
+dataflow:
+  engine:
+    pipelines-location: ${env.pipelines.location}
+    releases-root: ${env.releases.root}
+    lake-root: ${env.lake.root}
+    cache-dir: ${env.engine.cache-dir}
+    batching:
+      max-records-per-file: ${env.engine.batching.max-records-per-file}
+      max-files-per-batch: ${env.engine.batching.max-files-per-batch}
+    sources:
+      timeout: ${env.engine.sources.timeout}
+      connect-timeout: ${env.engine.sources.connect-timeout}
+    maintenance:
+      enabled: ${env.engine.maintenance.enabled}
+      interval: ${env.engine.maintenance.interval}
+      retention-hours: ${env.engine.maintenance.retention-hours}
+    serving:
+      enabled: ${env.serving.enabled}
+      url: ${env.serving.url}
+      user: ${env.serving.user}
+      password: ${env.serving.password}
+      database: ${env.serving.database}
+      collection: ${env.serving.collection}
+      refresh-every: ${env.serving.refresh-every}
+      timeout: ${env.serving.timeout}
+      connect-timeout: ${env.serving.connect-timeout}
+    tasks:
+      sample-rows: ${env.engine.tasks.sample-rows}
+      draft: ${env.engine.tasks.draft}
+      transformations: ${env.engine.tasks.transformations}
+      clean: ${env.engine.tasks.clean}
+
+env:
+  jasypt:
+    algorithm: PBEWITHHMACSHA512ANDAES_256
+    iv-generator: org.jasypt.iv.RandomIvGenerator
+  pipelines:
+    location: pipelines
+  releases:
+    root: file:./releases
+  lake:
+    root: file:./lake
+    endpoint: ""
+    access-key: ""
+    secret-key: ""
+    s3:
+      region: us-east-1
+      path-style: "true"
+      ssl: "false"
+      credentials-provider: ""
+    azure:
+      token-provider: org.apache.hadoop.fs.azurebfs.oauth2.WorkloadIdentityTokenProvider
+      tenant: ""
+      client-id: ""
+      token-file: ""
+    gcs:
+      auth-type: COMPUTE_ENGINE
+      keyfile: ""
+  spark:
+    master: local[*]
+    sql:
+      shuffle-partitions: "8"
+    delta-snapshot-partitions: "4"
+    event-log:
+      enabled: "false"
+      dir: file:/tmp/spark-events
+  engine:
+    cache-dir: data
+    batching:
+      max-records-per-file: 500000
+      max-files-per-batch: 2
+    sources:
+      timeout: 10m
+      connect-timeout: 30s
+    maintenance:
+      enabled: true
+      interval: 1h
+      retention-hours: 168
+    tasks:
+      sample-rows: 20000
+      draft: ""
+      transformations: ""
+      clean: ""
+  serving:
+    enabled: false
+    url: ""
+    user: ""
+    password: ""
+    database: serving
+    collection: lake
+    refresh-every: 1 DAY
+    timeout: 10m
+    connect-timeout: 10s

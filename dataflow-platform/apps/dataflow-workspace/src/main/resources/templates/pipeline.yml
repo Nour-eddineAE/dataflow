@@ -1,0 +1,23 @@
+dataset: {{dataset}}
+version: 3
+owner: platform
+description: What this data is and where it comes from
+
+source:
+  url: https://example.com/data.csv
+  format: csv
+  options: { header: "true" }
+
+schedule: "0 6 * * *"
+
+silver:
+  columns:
+    - { name: id, type: string, required: true, from: id }
+  expectations:
+    - { name: has_id, check: "id IS NOT NULL", on-failure: drop }
+
+history:
+  keys: [id]
+
+serve:
+  - { from: current, table: {{dataset}}, mode: view }

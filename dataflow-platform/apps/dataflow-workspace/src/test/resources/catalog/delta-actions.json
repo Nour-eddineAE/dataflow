@@ -1,0 +1,7 @@
+[
+  "{\"delta.enableDeletionVectors\":\"false\",\"delta.enableChangeDataFeed\":\"true\"}",
+  "[]",
+  1792871415809,
+  "{\"minReaderVersion\":1,\"minWriterVersion\":7,\"writerFeatures\":[\"domainMetadata\",\"changeDataFeed\",\"clustering\"]}",
+  "{\"clusteringColumns\":[[\"factUniqueId\"]],\"domainName\":\"delta.clustering\"}"
+]

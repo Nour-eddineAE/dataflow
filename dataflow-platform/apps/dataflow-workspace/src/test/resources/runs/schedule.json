@@ -1,0 +1,7 @@
+{
+  "__typename": "Schedule",
+  "cronSchedule": "0 */6 * * *",
+  "executionTimezone": "UTC",
+  "scheduleState": { "id": "28b9e2e7ef0d6f671ed03252c35d69b8a18364c0::fac2b51462e82cf553f2720a7b0d28d1f5a38b5b", "status": "STOPPED" },
+  "futureTicks": { "results": [{ "timestamp": 1792929600.0 }] }
+}

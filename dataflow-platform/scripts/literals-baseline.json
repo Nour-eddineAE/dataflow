@@ -1,0 +1,9 @@
+{
+  "constant-repeated": 30,
+  "java-string-in-3-files": 64,
+  "python-duplicate-string": 4,
+  "python-string-in-3-files": 3,
+  "setting-candidate": 59,
+  "ui-duplicate-string": 91,
+  "ui-string-in-3-files": 128
+}

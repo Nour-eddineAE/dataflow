@@ -1,0 +1,8 @@
+spring:
+  config:
+    import: classpath:application-spark-common.yml
+
+dataflow:
+  spark:
+    config:
+      spark.master: ${env.spark.master}

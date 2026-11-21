@@ -1,0 +1,65 @@
+.df-toolbar {
+    align-items: center;
+    background: var(--df-main);
+    border-bottom: 1px solid var(--df-border);
+    container-type: inline-size;
+    display: flex;
+    flex: none;
+    gap: 8px;
+    height: var(--df-bar);
+    min-width: 0;
+    padding: 0 10px 0 14px;
+}
+
+.df-toolbar-group {
+    align-items: center;
+    display: flex;
+    flex: none;
+    gap: 4px;
+    min-width: 0;
+}
+
+.df-toolbar-group[data-grow] {
+    flex: 1;
+    min-width: 72px;
+    overflow: hidden;
+}
+
+.df-toolbar > .mantine-SegmentedControl-root {
+    flex: none;
+}
+
+@container (max-width: 860px) {
+    .df-toolbar .df-action-label, .df-toolbar .df-validity > .mantine-Text-root {
+        display: none;
+    }
+
+    .df-toolbar .df-action {
+        padding-inline: 7px;
+    }
+
+    .df-toolbar .df-action .mantine-Button-section[data-position='left'] {
+        margin-inline-end: 0;
+    }
+}
+
+.df-toolbar-spacer {
+    flex: 1;
+}
+
+.df-toolbar-divider {
+    align-self: center;
+    background: var(--df-border);
+    flex: none;
+    height: 18px;
+    margin: 0 4px;
+    width: 1px;
+}
+
+.df-action, .df-icon-action {
+    transition: background-color var(--df-motion-fast) ease, color var(--df-motion-fast) ease, opacity var(--df-motion-fast) ease;
+}
+
+.df-action .df-count {
+    margin-left: 6px;
+}

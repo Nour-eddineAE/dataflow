@@ -1,0 +1,9 @@
+<clickhouse>
+    <named_collections>
+        <lake>
+            <url from_env="LAKE_URL"/>
+            <access_key_id from_env="RUSTFS_ACCESS_KEY"/>
+            <secret_access_key from_env="RUSTFS_SECRET_KEY"/>
+        </lake>
+    </named_collections>
+</clickhouse>

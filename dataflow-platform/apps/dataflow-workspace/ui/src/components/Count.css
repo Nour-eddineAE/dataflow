@@ -1,0 +1,38 @@
+.df-count {
+    border-radius: var(--mantine-radius-xl);
+    flex: none;
+    font-size: var(--mantine-font-size-micro);
+    font-variant-numeric: tabular-nums;
+    font-weight: 600;
+    line-height: 16px;
+    min-width: 16px;
+    padding: 0 5px;
+    text-align: center;
+}
+
+.df-count[data-tone='primary'] {
+    background: var(--mantine-primary-color-filled);
+    color: var(--mantine-primary-color-contrast);
+}
+
+.df-count[data-tone='accent'] {
+    background: var(--df-active);
+    color: var(--df-active-text);
+}
+
+.df-count[data-tone='danger'] {
+    background: color-mix(in srgb, var(--df-danger) 16%, transparent);
+    color: var(--df-danger);
+}
+
+.df-count[data-tone='warning'] {
+    background: color-mix(in srgb, var(--df-warning) 18%, transparent);
+    color: var(--df-warning);
+}
+
+.df-count[data-floating] {
+    padding: 0 4px;
+    position: absolute;
+    right: 0;
+    top: 0;
+}

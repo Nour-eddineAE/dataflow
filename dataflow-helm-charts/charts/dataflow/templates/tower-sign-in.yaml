@@ -1,0 +1,82 @@
+{{- if .Values.gateway.enabled }}
+{{- $host := required "gateway.hostname is required" .Values.gateway.hostname }}
+{{- $issuer := include "dataflow.issuer" . }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "dataflow.name" . }}-tower-sign-in
+  labels:
+    {{- include "dataflow.labels" . | nindent 4 }}
+    app.kubernetes.io/component: tower-sign-in
+spec:
+  selector:
+    app.kubernetes.io/component: tower-sign-in
+    app.kubernetes.io/instance: {{ .Release.Name }}
+  ports:
+    - {name: http, port: 4180, targetPort: http}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "dataflow.name" . }}-tower-sign-in
+  labels:
+    {{- include "dataflow.labels" . | nindent 4 }}
+    app.kubernetes.io/component: tower-sign-in
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/component: tower-sign-in
+      app.kubernetes.io/instance: {{ .Release.Name }}
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/component: tower-sign-in
+        app.kubernetes.io/instance: {{ .Release.Name }}
+    spec:
+      automountServiceAccountToken: false
+      securityContext: {runAsNonRoot: true, runAsUser: 65532, runAsGroup: 65532}
+      containers:
+        - name: oauth2-proxy
+          image: {{ .Values.towerSignIn.image | quote }}
+          args:
+            - --http-address=0.0.0.0:4180
+            - --upstream=http://{{ include "dataflow.towerWebserver" . }}:80
+            - --provider=oidc
+            - --oidc-issuer-url={{ $issuer }}
+            {{- if .Values.keycloak.enabled }}
+            - --skip-oidc-discovery=true
+            - --login-url={{ $issuer }}/protocol/openid-connect/auth
+            - --redeem-url={{ include "dataflow.issuerInternal" . }}/protocol/openid-connect/token
+            - --oidc-jwks-url={{ include "dataflow.issuerInternal" . }}/protocol/openid-connect/certs
+            {{- end }}
+            - --client-id={{ .Values.towerSignIn.clientId }}
+            - --redirect-url=https://{{ $host }}/tower/oauth2/callback
+            - --proxy-prefix=/tower/oauth2
+            - --code-challenge-method=S256
+            - --scope=openid profile email
+            - --oidc-groups-claim={{ .Values.auth.groupsClaim }}
+            {{- range .Values.towerSignIn.allowedGroups }}
+            - --allowed-group={{ . }}
+            {{- end }}
+            - --email-domain=*
+            - --cookie-name=_dataflow_tower
+            - --cookie-path=/tower
+            - --cookie-secure=true
+            - --reverse-proxy=true
+            - --skip-provider-button=true
+          env:
+            - name: OAUTH2_PROXY_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef: {name: {{ .Values.global.postgresqlSecretName }}, key: oauth2-proxy-client-secret}
+            - name: OAUTH2_PROXY_COOKIE_SECRET
+              valueFrom:
+                secretKeyRef: {name: {{ .Values.global.postgresqlSecretName }}, key: oauth2-proxy-cookie-secret}
+          ports:
+            - {name: http, containerPort: 4180}
+          readinessProbe:
+            httpGet: {path: /ping, port: http}
+            periodSeconds: 10
+          resources:
+            {{- toYaml .Values.towerSignIn.resources | nindent 12 }}
+{{- end }}

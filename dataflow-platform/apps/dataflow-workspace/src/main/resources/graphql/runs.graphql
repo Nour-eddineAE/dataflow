@@ -1,0 +1,7 @@
+query Runs($filter: RunsFilter, $limit: Int) {
+  runsOrError(filter: $filter, limit: $limit) {
+    __typename
+    ... on Runs { results { ...RunFields } }
+    ... on PythonError { message }
+  }
+}

@@ -1,0 +1,42 @@
+{
+  "clientId": "oauth2-proxy",
+  "name": "Tower, mail and Spark UIs",
+  "enabled": true,
+  "publicClient": false,
+  "clientAuthenticatorType": "client-secret",
+  "standardFlowEnabled": true,
+  "directAccessGrantsEnabled": false,
+  "redirectUris": [
+    "${TOWER_URL}/oauth2/callback",
+    "${MAILPIT_URL}/oauth2/callback",
+    "${SPARK_HISTORY_URL}/oauth2/callback"
+  ],
+  "attributes": {
+    "pkce.code.challenge.method": "S256",
+    "post.logout.redirect.uris": "${TOWER_URL}/*##${MAILPIT_URL}/*##${SPARK_HISTORY_URL}/*"
+  },
+  "protocolMappers": [
+    {
+      "name": "groups",
+      "protocol": "openid-connect",
+      "protocolMapper": "oidc-group-membership-mapper",
+      "config": {
+        "claim.name": "groups",
+        "full.path": "false",
+        "id.token.claim": "true",
+        "access.token.claim": "true",
+        "userinfo.token.claim": "true"
+      }
+    },
+    {
+      "name": "audience",
+      "protocol": "openid-connect",
+      "protocolMapper": "oidc-audience-mapper",
+      "config": {
+        "included.client.audience": "oauth2-proxy",
+        "access.token.claim": "true",
+        "id.token.claim": "true"
+      }
+    }
+  ]
+}

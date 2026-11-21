@@ -1,0 +1,13 @@
+<project xmlns="http://maven.apache.org/POM/4.0.0">
+    <modelVersion>4.0.0</modelVersion>
+    <groupId>spike</groupId>
+    <artifactId>s3-pipes</artifactId>
+    <version>1</version>
+    <dependencies>
+        <dependency>
+            <groupId>io.dagster</groupId>
+            <artifactId>pipes</artifactId>
+            <version>1.1.1</version>
+        </dependency>
+    </dependencies>
+</project>

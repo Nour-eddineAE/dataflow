@@ -1,0 +1,46 @@
+dataset: sensor_readings
+version: 3
+owner: lab
+description: Temperature sensors, one file per day
+
+source:
+  path: /data/sensors/readings_{partition}.csv
+  format: csv
+  options: { header: "true" }
+  partitions: { daily: { start: 2026-01-01 } }
+
+schedule: "15 * * * *"
+
+bronze:
+  schema-evolution: add-new-columns
+  max-files-per-trigger: 2
+
+silver:
+  columns:
+    - { name: sensorId, type: string,        required: true, from: sensor_id }
+    - { name: readAt,   type: timestamp_ntz, required: true, from: "cast(read_at AS timestamp_ntz)" }
+    - { name: celsius,  type: "decimal(5,2)",                from: temp_c }
+  derive:
+    - { name: fahrenheit, type: double, from: "celsius * 9 / 5 + 32" }
+  expectations:
+    - { name: plausible_temperature, check: "celsius BETWEEN -80 AND 60", on-failure: drop }
+    - { name: has_reading,           check: "celsius IS NOT NULL" }
+
+history:
+  keys: [sensorId, readAt]
+  sequence-by: readAt
+  track-history-except: [celsius]
+
+references:
+  - { name: sensors, path: /data/sensors.csv, format: csv, options: { header: "true" } }
+
+gold:
+  - name: daily_average
+    sql: |
+      SELECT to_date(c.readAt) AS day, s.site, avg(c.celsius) AS celsius
+      FROM current c JOIN sensors s ON c.sensorId = s.id
+      GROUP BY 1, 2
+
+serve:
+  - { from: current,            table: sensor_readings }
+  - { from: gold.daily_average, table: sensor_daily_average, mode: copy, order-by: "(day, site)" }

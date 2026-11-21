@@ -1,0 +1,5 @@
+19:02:31
+spike-dagster-webserver 129.8MiB / 3.883GiB 0.41%
+spike-dagster-daemon 108.2MiB / 3.883GiB 1.05%
+spike-dagster-code 181.7MiB / 3.883GiB 1.16%
+spike-dagster-postgres 22.9MiB / 3.883GiB 0.00%

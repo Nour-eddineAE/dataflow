@@ -1,0 +1,60 @@
+.df-tab-list {
+    align-items: stretch;
+    border-bottom: 1px solid var(--df-border);
+    display: flex;
+    flex-wrap: nowrap;
+    gap: 2px;
+    min-width: 0;
+}
+
+.mantine-Tabs-list.df-tab-list::before {
+    display: none;
+}
+
+.df-tab-list .df-tab {
+    align-items: center;
+    background: none;
+    border: 0;
+    border-bottom: 2px solid transparent;
+    border-radius: 0;
+    color: var(--mantine-color-dimmed);
+    cursor: pointer;
+    display: inline-flex;
+    flex: none;
+    font: inherit;
+    font-size: var(--mantine-font-size-sm);
+    font-weight: 500;
+    gap: 6px;
+    height: 36px;
+    margin: 0 0 -1px;
+    padding: 0 10px;
+    transition: color var(--df-motion-fast) ease, border-color var(--df-motion-base) ease;
+    white-space: nowrap;
+}
+
+.df-tab-list .df-tab:hover:not(:disabled, [data-disabled]) {
+    background: none;
+    color: var(--mantine-color-text);
+}
+
+.df-tab-list .df-tab[data-active] {
+    border-bottom-color: var(--mantine-primary-color-filled);
+    color: var(--mantine-color-text);
+}
+
+.df-tab-list .df-tab:disabled, .df-tab-list .df-tab[data-disabled] {
+    cursor: default;
+    opacity: 0.4;
+}
+
+.df-tab-list .df-tab:focus-visible {
+    border-radius: var(--mantine-radius-sm) var(--mantine-radius-sm) 0 0;
+    outline: 2px solid var(--df-focus);
+    outline-offset: -2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .df-tab-list .df-tab {
+        transition: none;
+    }
+}

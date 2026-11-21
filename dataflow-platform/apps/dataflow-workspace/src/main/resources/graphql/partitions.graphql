@@ -1,0 +1,18 @@
+query Partitions($path: [String!]!) {
+  assetNodeOrError(assetKey: { path: $path }) {
+    __typename
+    ... on AssetNode {
+      partitionKeys
+      assetPartitionStatuses {
+        __typename
+        ... on TimePartitionStatuses { ranges { status startKey endKey } }
+        ... on DefaultPartitionStatuses {
+          materializedPartitions
+          failedPartitions
+          materializingPartitions
+        }
+      }
+    }
+    ... on AssetNotFoundError { message }
+  }
+}

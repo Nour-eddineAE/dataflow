@@ -1,0 +1,1 @@
+ALTER TABLE draft ALTER COLUMN base_commit DROP NOT NULL;

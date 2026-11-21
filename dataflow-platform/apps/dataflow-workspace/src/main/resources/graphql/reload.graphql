@@ -1,0 +1,7 @@
+mutation Reload($location: String!) {
+  reloadRepositoryLocation(repositoryLocationName: $location) {
+    __typename
+    ... on WorkspaceLocationEntry { name locationOrLoadError { __typename } }
+    ... on Error { message }
+  }
+}

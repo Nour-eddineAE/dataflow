@@ -1,0 +1,6 @@
+mutation StartSchedule($selector: ScheduleSelector!) {
+  startSchedule(scheduleSelector: $selector) {
+    __typename
+    ... on Error { message }
+  }
+}

@@ -1,0 +1,6 @@
+mutation StopSchedule($id: String!) {
+  stopRunningSchedule(id: $id) {
+    __typename
+    ... on Error { message }
+  }
+}

@@ -1,0 +1,81 @@
+apiVersion: 1
+
+groups:
+  - orgId: 1
+    name: pipeline-runs
+    folder: Pipeline
+    interval: 5m
+    rules:
+      - uid: pipeline-quarantine-rate
+        title: Quarantine rate above 5%
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange: { from: 86400, to: 0 }
+            datasourceUid: dataflow-clickhouse
+            model:
+              refId: A
+              editorType: sql
+              format: 1
+              queryType: table
+              rawSql: |
+                SELECT dataset, sum(rows_dropped) / greatest(sum(rows_in), 1) AS rate
+                FROM serving.run_events
+                WHERE event_type = 'flow_progress' AND flow = 'silver' AND ts > now() - INTERVAL 1 DAY
+                GROUP BY dataset
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              refId: C
+              type: threshold
+              expression: A
+              conditions:
+                - evaluator: { type: gt, params: [0.05] }
+        noDataState: OK
+        execErrState: Error
+        for: 0m
+        labels:
+          severity: warning
+          team: dataflow
+        annotations:
+          summary: "{{ $labels.dataset }}: {{ humanizePercentage $values.A.Value }} of rows quarantined in a day"
+          description: >-
+            Over 5% of the rows the silver flow evaluated in the last 24 hours broke a drop expectation and went to
+            quarantine/{{ $labels.dataset }}. Which rule: /d/dataflow-quality?var-dataset={{ $labels.dataset }}
+
+      - uid: pipeline-late
+        title: Dataset late against its schedule
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange: { from: 3600, to: 0 }
+            datasourceUid: dataflow-clickhouse
+            model:
+              refId: A
+              editorType: sql
+              format: 1
+              queryType: table
+              rawSql: |
+                SELECT dataset, hours_late AS hours
+                FROM serving.schedules FINAL
+                WHERE running = 1 AND state = 'late'
+                  AND checked_at > now() - INTERVAL 15 MINUTE
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              refId: C
+              type: threshold
+              expression: A
+              conditions:
+                - evaluator: { type: gt, params: [0] }
+        noDataState: OK
+        execErrState: Error
+        for: 0m
+        labels:
+          severity: critical
+          team: dataflow
+        annotations:
+          summary: "{{ $labels.dataset }} is {{ with $values.A }}{{ humanize .Value }}{{ end }} hours late against its schedule"
+          description: >-
+            The next scheduled run should have finished more than an hour ago: the tower is down, runs fail, or the source
+            stopped publishing. Paused schedules never alert. Board: http://localhost:3080/dashboards/{{ $labels.dataset }}

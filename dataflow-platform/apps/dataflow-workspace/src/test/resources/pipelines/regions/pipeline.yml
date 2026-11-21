@@ -1,0 +1,17 @@
+dataset: regions
+version: 3
+owner: analytics
+description: Strongest earthquake per region, read from the earthquakes pipeline
+
+inputs:
+  quakes: earthquakes.current
+
+gold:
+  - name: strong
+    sql: SELECT region, max(magnitude) AS peak FROM quakes GROUP BY region
+  - name: top
+    sql: SELECT s.region, s.peak FROM strong s WHERE s.peak > 5
+  - name: stepped
+    from: quakes
+    steps:
+      - filter: "magnitude > 4"

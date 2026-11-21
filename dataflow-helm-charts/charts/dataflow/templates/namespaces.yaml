@@ -1,0 +1,17 @@
+{{- if .Values.namespaces.create }}
+{{- range $name := list (include "dataflow.dataNamespace" .) (include "dataflow.jobsNamespace" .) | uniq }}
+{{- if ne $name $.Release.Namespace }}
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: {{ $name }}
+  annotations:
+    helm.sh/resource-policy: keep
+  labels:
+    {{- include "dataflow.labels" $ | nindent 4 }}
+    pod-security.kubernetes.io/enforce: baseline
+    pod-security.kubernetes.io/warn: restricted
+{{- end }}
+{{- end }}
+{{- end }}

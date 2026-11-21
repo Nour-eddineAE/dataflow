@@ -1,0 +1,43 @@
+dataset: readings
+version: 3
+owner: test
+description: Sensor readings that get corrected after the fact
+
+source:
+  path: __LANDING_SOURCE__/readings_*.csv
+  format: csv
+  options: { header: "true" }
+
+silver:
+  columns:
+    - { name: sensorId,  type: string,    required: true, from: sensor_id }
+    - { name: readAt,    type: timestamp, required: true, from: "to_timestamp(read_at)" }
+    - { name: celsius,   type: double,                    from: temp_c }
+    - { name: revisedAt, type: timestamp,                 from: "to_timestamp(revised_at)" }
+  derive:
+    - { name: fahrenheit, type: double, from: "celsius * 9 / 5 + 32" }
+  expectations:
+    - { name: has_celsius, check: "celsius IS NOT NULL",        on-failure: drop }
+    - { name: plausible,   check: "celsius BETWEEN -80 AND 60", on-failure: warn }
+    - { name: no_poison,   check: "sensorId <> 'poison'",       on-failure: fail }
+
+history:
+  keys: [sensorId, readAt]
+  sequence-by: revisedAt
+  track-history-except: [revisedAt]
+
+references:
+  - { name: sensors, path: __LANDING_SOURCE__/sensors.csv, format: csv, options: { header: "true" } }
+
+gold:
+  - name: per_site
+    sql: |
+      SELECT s.site, count(*) AS readings, round(avg(c.celsius), 2) AS celsius
+      FROM current c JOIN sensors s ON c.sensorId = s.id
+      GROUP BY 1
+  - name: per_sensor
+    sql: SELECT sensorId, max(celsius) AS maxCelsius FROM current GROUP BY 1
+
+serve:
+  - { from: current,       table: readings,          mode: view }
+  - { from: gold.per_site, table: readings_per_site, mode: copy, order-by: site }

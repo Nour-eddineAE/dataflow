@@ -1,0 +1,96 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "dataflow.name" . }}-engine
+  namespace: {{ include "dataflow.jobsNamespace" . }}
+data:
+  LAKE_ROOT: {{ .Values.lake.root | quote }}
+  LAKE_ENDPOINT: {{ include "dataflow.endpoint" . | quote }}
+  LAKE_S3_REGION: {{ .Values.lake.region | quote }}
+  LAKE_S3_PATH_STYLE: {{ .Values.lake.pathStyle | quote }}
+  LAKE_S3_SSL: {{ .Values.lake.ssl | quote }}
+  RELEASES_ROOT: {{ printf "s3a://%s" .Values.releases.bucket | quote }}
+  RELEASES_BUCKET: {{ .Values.releases.bucket | quote }}
+  ENGINE_CACHE_DIR: /tmp/dataflow
+  ENGINE_MAINTENANCE_INTERVAL: 1h
+  ENGINE_MAINTENANCE_RETENTION_HOURS: "168"
+  ENGINE_SOURCE_TIMEOUT: {{ .Values.engine.sourceTimeout | quote }}
+  ENGINE_SOURCE_CONNECT_TIMEOUT: {{ .Values.engine.sourceConnectTimeout | quote }}
+  ENGINE_SERVING_TIMEOUT: {{ .Values.engine.servingTimeout | quote }}
+  ENGINE_SERVING_CONNECT_TIMEOUT: {{ .Values.engine.servingConnectTimeout | quote }}
+  SERVING_ENABLED: "true"
+  CLICKHOUSE_URL: {{ printf "http://%s:8123" (include "dataflow.clickhouseHost" .) | quote }}
+  CLICKHOUSE_USER: {{ .Values.clickhouse.user | quote }}
+  SPARK_SQL_SHUFFLE_PARTITIONS: "8"
+  SPARK_DELTA_SNAPSHOT_PARTITIONS: "4"
+  SPARK_EVENT_LOG_ENABLED: "true"
+  SPARK_EVENT_LOG_DIR: {{ printf "%s/spark-events/" (trimSuffix "/" .Values.lake.root) | quote }}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "dataflow.name" . }}-engine-pods
+  namespace: {{ include "dataflow.jobsNamespace" . }}
+data:
+  {{- $environment := list (dict "configMapRef" (dict "name" (printf "%s-engine" (include "dataflow.name" .)))) (dict "secretRef" (dict "name" .Values.lakeSecretName)) }}
+  {{- $container := dict "name" "spark-kubernetes-executor" "envFrom" $environment }}
+  {{- $spec := merge (dict "containers" (list $container)) (deepCopy (.Values.spark.executorTemplate.spec | default dict)) }}
+  {{- $pod := merge (dict "apiVersion" "v1" "kind" "Pod" "spec" $spec) (omit .Values.spark.executorTemplate "spec") }}
+  executor.yaml: |
+    {{- toYaml $pod | nindent 4 }}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "dataflow.name" . }}-tower
+data:
+  RELEASES_ROOT: {{ printf "s3a://%s" .Values.releases.bucket | quote }}
+  RELEASES_TARGET: {{ .Values.releases.target | quote }}
+  RELEASES_BUCKET: {{ .Values.releases.bucket | quote }}
+  ENGINE_IMAGE: {{ .Values.images.engine | quote }}
+  ENGINE_MEM_LIMIT: 1800m
+  HOST_DATA: ""
+  LAKE_ENDPOINT: {{ include "dataflow.endpoint" . | quote }}
+  LAKE_S3_REGION: {{ .Values.lake.region | quote }}
+  LAKE_S3_PATH_STYLE: {{ .Values.lake.pathStyle | quote }}
+  POD_NAMESPACE: {{ .Release.Namespace | quote }}
+  SMTP_HOST: ""
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "dataflow.name" . }}-tower-definitions
+data:
+  defs.yaml: |
+    type: dataflow_tower.PipelineSpecs
+    attributes:
+      releases: {{ printf "s3a://%s" .Values.releases.bucket | quote }}
+      target: {{ .Values.releases.target | quote }}
+      kubernetes:
+        namespace: {{ include "dataflow.jobsNamespace" . | quote }}
+        run_namespace: {{ .Release.Namespace | quote }}
+        image: {{ .Values.images.engine | quote }}
+        service_account: {{ .Values.spark.serviceAccount | quote }}
+        config_map: {{ printf "%s-engine" (include "dataflow.name" .) | quote }}
+        secret: {{ .Values.lakeSecretName | quote }}
+        pod_templates: {{ printf "%s-engine-pods" (include "dataflow.name" .) | quote }}
+        driver_memory: {{ .Values.spark.driverMemory | quote }}
+        executor_memory: {{ .Values.spark.executorMemory | quote }}
+        driver_cores: {{ .Values.spark.driverCores }}
+        executor_cores: {{ .Values.spark.executorCores }}
+        min_executors: {{ .Values.spark.minExecutors }}
+        max_executors: {{ .Values.spark.maxExecutors }}
+        ttl_seconds: {{ .Values.spark.ttlSeconds }}
+        startup_timeout_seconds: {{ .Values.spark.startupTimeoutSeconds }}
+        run_timeout_seconds: {{ .Values.spark.runTimeoutSeconds }}
+        memory_overhead: {{ .Values.spark.memoryOverhead | quote }}
+        cpu_request: {{ .Values.spark.cpuRequest | quote }}
+        single_pod: {{ .Values.spark.singlePod }}
+        driver_template:
+          {{- toYaml .Values.spark.driverTemplate | nindent 10 }}
+      compute_policy:
+        max_driver_memory: {{ .Values.computePolicy.maxDriverMemory | quote }}
+        max_driver_cores: {{ .Values.computePolicy.maxDriverCores | quote }}
+        max_executor_memory: {{ .Values.computePolicy.maxExecutorMemory | quote }}
+        max_executor_cores: {{ .Values.computePolicy.maxExecutorCores | quote }}
+        max_executors: {{ .Values.computePolicy.maxExecutors | quote }}

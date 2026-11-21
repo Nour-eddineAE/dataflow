@@ -1,0 +1,9 @@
+export const ICON = {size: 16} as const;
+export const ICON_TINY = {size: 12} as const;
+export const ICON_SMALL = {size: 14} as const;
+export const ICON_STATUS = {size: 15} as const;
+export const ICON_LARGE = {size: 18} as const;
+export const ICON_BIG = {size: 20} as const;
+export const ICON_PAGE = {size: 22} as const;
+export const ICON_EMPTY = {size: 28} as const;
+export const ICON_HERO = {size: 22, weight: 'light'} as const;

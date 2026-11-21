@@ -1,0 +1,9 @@
+dataset: top_level
+version: 3
+retries: 2
+source: { path: /data/x.csv, format: csv }
+silver:
+  columns:
+    - { name: id, type: string, from: id }
+history:
+  keys: [id]

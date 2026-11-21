@@ -1,0 +1,12 @@
+project: lab-sensors
+description: Readings from the lab
+targets:
+  dev:
+    mode: development
+  prod:
+    mode: production
+    branch: main
+    compute:
+      driver-memory: 2g
+      executors: { min: 1, max: 6 }
+      spark-conf: { spark.sql.shuffle.partitions: "32" }

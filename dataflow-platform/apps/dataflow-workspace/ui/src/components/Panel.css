@@ -1,0 +1,54 @@
+.df-section-head {
+    align-items: center;
+    border-bottom: 1px solid var(--df-border);
+    display: flex;
+    gap: 12px;
+    height: var(--df-bar);
+    justify-content: space-between;
+}
+
+.df-section-title {
+    align-items: center;
+    display: flex;
+    font-size: var(--mantine-font-size-md);
+    font-weight: 600;
+    gap: 8px;
+    margin: 0;
+    min-width: 0;
+}
+
+.df-section-actions {
+    align-items: center;
+    display: flex;
+    gap: 6px;
+    margin-left: auto;
+}
+
+.df-section:not([data-framed], [data-flush]) > .df-section-body {
+    padding: 12px 0;
+}
+
+.df-section:not([data-framed]) .mantine-Table-th:first-child,
+.df-section:not([data-framed]) .mantine-Table-td:first-child {
+    padding-left: 0;
+}
+
+.df-section:not([data-framed]) .mantine-Table-th:last-child,
+.df-section:not([data-framed]) .mantine-Table-td:last-child {
+    padding-right: 0;
+}
+
+.df-section[data-framed] {
+    background: var(--df-main);
+    border: 1px solid var(--df-border);
+    border-radius: var(--mantine-radius-md);
+    overflow: hidden;
+}
+
+.df-section[data-framed] > .df-section-head {
+    padding: 0 16px;
+}
+
+.df-section[data-framed]:not([data-flush]) > .df-section-body {
+    padding: 16px;
+}

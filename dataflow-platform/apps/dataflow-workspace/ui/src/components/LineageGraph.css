@@ -1,0 +1,219 @@
+.df-lineage {
+    display: flex;
+    flex-direction: column;
+}
+
+.df-lineage-bar {
+    align-items: center;
+    border-bottom: 1px solid var(--df-border);
+    display: flex;
+    flex: none;
+    gap: 8px;
+    height: 40px;
+    padding: 0 8px;
+}
+
+.df-lineage-canvas {
+    flex: 1;
+    min-height: 0;
+    position: relative;
+}
+
+.df-lineage-tools {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    left: 10px;
+    pointer-events: none;
+    position: absolute;
+    top: 10px;
+    width: 300px;
+    z-index: 5;
+}
+
+.df-lineage-tools > * {
+    pointer-events: auto;
+}
+
+.df-lineage-tools > .df-lineage-card {
+    pointer-events: none;
+}
+
+.df-lineage-card {
+    background: var(--df-main);
+    border: 1px solid var(--df-border);
+    border-radius: var(--mantine-radius-md);
+    box-shadow: var(--df-shadow-raised);
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    opacity: 0;
+    padding: 8px 10px;
+    transform: translateY(-4px);
+    transition: opacity var(--df-motion-fast) ease, transform var(--df-motion-fast) ease;
+}
+
+.df-lineage-card[data-shown] {
+    opacity: 1;
+    transform: none;
+}
+
+.df-lineage-card-name {
+    align-items: baseline;
+    display: flex;
+    font-family: var(--mantine-font-family-monospace);
+    font-size: var(--mantine-font-size-xs);
+    gap: 8px;
+    justify-content: space-between;
+}
+
+.df-lineage-card-code {
+    background: var(--df-subtle);
+    border-radius: var(--mantine-radius-sm);
+    font-family: var(--mantine-font-family-monospace);
+    font-size: var(--mantine-font-size-xs);
+    padding: 4px 6px;
+    white-space: pre-wrap;
+    word-break: break-word;
+}
+
+.df-lineage-table {
+    background: var(--df-main);
+    border: 1px solid var(--df-border);
+    border-radius: var(--mantine-radius-md);
+    box-shadow: inset 0 2px 0 var(--df-node-tone);
+    overflow: hidden;
+    transition: box-shadow var(--df-motion-base) ease;
+    width: 230px;
+}
+
+.df-lineage-table[data-focused] {
+    border-color: var(--mantine-primary-color-filled);
+}
+
+.react-flow__node:hover .df-lineage-table {
+    box-shadow: var(--df-shadow-raised), inset 0 2px 0 var(--df-node-tone);
+}
+
+.react-flow__node.dragging .df-lineage-table {
+    box-shadow: var(--df-shadow-overlay), inset 0 2px 0 var(--df-node-tone);
+}
+
+.df-lineage-head {
+    align-items: center;
+    background: var(--df-subtle);
+    border-bottom: 1px solid var(--df-border);
+    color: var(--df-node-tone);
+    display: flex;
+    gap: 8px;
+    height: 40px;
+    padding: 0 10px;
+}
+
+.df-lineage-name {
+    color: var(--mantine-color-text);
+    flex: 1;
+    font-size: var(--mantine-font-size-sm);
+    font-weight: 600;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.df-lineage-layer {
+    color: var(--mantine-color-dimmed);
+    flex: none;
+    font-size: var(--mantine-font-size-caption);
+}
+
+.df-lineage-column {
+    align-items: center;
+    display: flex;
+    gap: 6px;
+    height: 24px;
+    padding: 0 10px;
+    position: relative;
+    transition: opacity var(--df-motion-fast) ease, background-color var(--df-motion-fast) ease;
+}
+
+.df-lineage-column-pick {
+    align-items: center;
+    background: none;
+    border: 0;
+    color: inherit;
+    cursor: pointer;
+    display: flex;
+    flex: 1;
+    font: inherit;
+    gap: 6px;
+    height: 100%;
+    min-width: 0;
+    padding: 0;
+    text-align: left;
+}
+
+.df-lineage-column-pick:focus-visible {
+    outline: 2px solid var(--df-focus);
+    outline-offset: -2px;
+}
+
+.df-lineage-more {
+    align-items: center;
+    color: var(--mantine-color-dimmed);
+    display: flex;
+    font-size: var(--mantine-font-size-xs);
+    height: 24px;
+    padding: 0 10px;
+}
+
+.df-lineage-column[data-dim] {
+    opacity: 0.3;
+}
+
+.df-lineage-column[data-hot] {
+    background: color-mix(in srgb, var(--mantine-primary-color-filled) 8%, transparent);
+}
+
+.df-lineage-column[data-focus] {
+    background: var(--df-active);
+}
+
+.df-lineage-column .react-flow__handle-left {
+    left: 0;
+}
+
+.df-lineage-column .react-flow__handle-right {
+    right: 0;
+}
+
+.df-lineage-column-name {
+    flex: 1;
+    font-family: var(--mantine-font-family-monospace);
+    font-size: var(--mantine-font-size-xs);
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.df-lineage-column-type {
+    color: var(--mantine-color-dimmed);
+    flex: none;
+    font-family: var(--mantine-font-family-monospace);
+    font-size: var(--mantine-font-size-micro);
+    max-width: 90px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.df-lineage .react-flow__edge-path {
+    transition: stroke var(--df-motion-fast) ease, opacity var(--df-motion-fast) ease;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .df-lineage-card, .df-lineage-column, .df-lineage .react-flow__edge-path {
+        transition: none;
+    }
+}

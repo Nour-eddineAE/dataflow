@@ -1,0 +1,5 @@
+{"data": {"topLevelResourceDetailsOrError": {"__typename": "ResourceDetails", "configFields": [
+  {"name": "tower.target", "description": "The release target this tower runs", "configTypeKey": "String", "defaultValueAsJson": "\"prod\""},
+  {"name": "tower.freshness_hours", "description": "Hours after which a scheduled table counts as stale", "configTypeKey": "Int", "defaultValueAsJson": "12"},
+  {"name": "tower.kubernetes.single_pod", "description": null, "configTypeKey": "Bool", "defaultValueAsJson": "false"}
+]}}}

@@ -1,0 +1,46 @@
+{
+  "schedulesOrError": {
+    "__typename": "Schedules",
+    "results": [
+      {
+        "name": "earthquakes_schedule",
+        "cronSchedule": "0 */6 * * *",
+        "executionTimezone": "UTC",
+        "scheduleState": {
+          "id": "schedule-state",
+          "status": "STOPPED",
+          "ticks": [{"status": "SUCCESS", "timestamp": 1792886400.0, "skipReason": null, "error": null}]
+        },
+        "futureTicks": {"results": [{"timestamp": 1793404800.0}]}
+      }
+    ]
+  },
+  "sensorsOrError": {
+    "__typename": "Sensors",
+    "results": [
+      {
+        "name": "orphaned_runs",
+        "minIntervalSeconds": 60,
+        "sensorState": {
+          "id": "orphans-state",
+          "status": "RUNNING",
+          "ticks": [{"status": "SKIPPED", "timestamp": 1793397596.5, "skipReason": "No orphaned runs", "error": null}]
+        }
+      },
+      {
+        "name": "zone_hours_on_inputs",
+        "minIntervalSeconds": 30,
+        "sensorState": {
+          "id": "inputs-state",
+          "status": "RUNNING",
+          "ticks": [{"status": "FAILURE", "timestamp": 1793397596.0, "skipReason": null, "error": {"message": "taxi_trips is unreachable"}}]
+        }
+      },
+      {
+        "name": "run_failure_email",
+        "minIntervalSeconds": 30,
+        "sensorState": {"id": "email-state", "status": "STOPPED", "ticks": []}
+      }
+    ]
+  }
+}

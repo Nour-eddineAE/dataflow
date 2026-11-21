@@ -1,0 +1,1 @@
+{"data": {"workspaceOrError": {"__typename": "Workspace", "locationEntries": [{"name": "dataflow", "locationOrLoadError": {"__typename": "PythonError", "message": "dagster._core.errors.DagsterUserCodeLoadError: Error loading pipelines: invalid spec\n"}}]}, "executionPlanOrError": {"__typename": "PipelineNotFoundError"}}}

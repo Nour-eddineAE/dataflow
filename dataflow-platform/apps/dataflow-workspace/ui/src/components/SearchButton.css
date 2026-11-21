@@ -1,0 +1,103 @@
+.df-search-control {
+    container-type: inline-size;
+    height: 32px;
+    min-width: 0;
+    width: 100%;
+}
+
+.df-search-button {
+    align-items: center;
+    background: var(--df-main);
+    border: 1px solid var(--df-border);
+    border-radius: var(--mantine-radius-sm);
+    color: var(--mantine-color-dimmed);
+    display: grid;
+    gap: 8px;
+    grid-template-columns: 16px minmax(0, 1fr) auto;
+    height: 32px;
+    padding: 0 7px 0 10px;
+    text-align: left;
+    transition: background-color var(--df-motion-fast) ease, border-color var(--df-motion-fast) ease, box-shadow var(--df-motion-fast) ease;
+    width: 100%;
+}
+
+.df-search-button:hover {
+    background: var(--df-subtle);
+    border-color: var(--mantine-color-dimmed);
+}
+
+.df-search-button:focus-visible {
+    outline: 2px solid var(--df-focus);
+    outline-offset: 2px;
+}
+
+.df-search-button:active {
+    background: var(--df-hover);
+}
+
+.df-search-label {
+    font-size: var(--mantine-font-size-sm);
+    line-height: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.df-shell-header-brand, .df-shell-header-actions {
+    flex: none;
+    width: 208px;
+}
+
+.df-shell-header-search {
+    flex: 1;
+    max-width: 640px;
+    min-width: 0;
+}
+
+@container (max-width: 170px) {
+    .df-search-button {
+        grid-template-columns: 16px minmax(0, 1fr);
+    }
+
+    .df-search-button .df-search-shortcut {
+        display: none;
+    }
+}
+
+@container (max-width: 90px) {
+    .df-search-button {
+        grid-template-columns: 16px;
+        justify-content: center;
+        padding-inline: 6px;
+    }
+
+    .df-search-label {
+        display: none;
+    }
+}
+
+@media (max-width: 900px) {
+    .df-shell-header-brand {
+        width: 160px;
+    }
+
+    .df-shell-header-actions {
+        width: 104px;
+    }
+}
+
+@media (max-width: 600px) {
+    .df-shell-header {
+        gap: 8px;
+    }
+
+    .df-shell-header-brand {
+        width: 136px;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .df-search-button {
+        transition: none;
+    }
+}

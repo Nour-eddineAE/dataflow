@@ -1,0 +1,67 @@
+{{- if .Values.localPorts.enabled }}
+{{- $ports := .Values.localPorts }}
+{{- $data := include "dataflow.dataNamespace" . }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "dataflow.name" . }}-workspace-local
+  labels:
+    {{- include "dataflow.labels" . | nindent 4 }}
+spec:
+  type: LoadBalancer
+  selector:
+    app.kubernetes.io/component: workspace
+    app.kubernetes.io/instance: {{ .Release.Name }}
+  ports:
+    - {name: http, port: {{ $ports.workspace }}, targetPort: http}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "dataflow.name" . }}-tower-local
+  labels:
+    {{- include "dataflow.labels" . | nindent 4 }}
+spec:
+  type: LoadBalancer
+  selector:
+    app.kubernetes.io/instance: {{ .Release.Name }}
+    app.kubernetes.io/name: dagster
+    component: dagster-webserver
+  ports:
+    - {name: http, port: {{ $ports.tower }}, targetPort: http}
+{{- if .Values.rustfs.enabled }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "dataflow.name" . }}-rustfs-local
+  namespace: {{ $data }}
+  labels:
+    {{- include "dataflow.labels" . | nindent 4 }}
+spec:
+  type: LoadBalancer
+  selector:
+    app.kubernetes.io/component: rustfs
+    app.kubernetes.io/instance: {{ .Release.Name }}
+  ports:
+    - {name: s3, port: {{ $ports.objectStore }}, targetPort: s3}
+    - {name: console, port: {{ $ports.objectStoreConsole }}, targetPort: console}
+{{- end }}
+{{- if .Values.clickhouse.enabled }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "dataflow.name" . }}-clickhouse-local
+  namespace: {{ $data }}
+  labels:
+    {{- include "dataflow.labels" . | nindent 4 }}
+spec:
+  type: LoadBalancer
+  selector:
+    app.kubernetes.io/component: clickhouse
+    app.kubernetes.io/instance: {{ .Release.Name }}
+  ports:
+    - {name: http, port: {{ $ports.clickhouse }}, targetPort: http}
+{{- end }}
+{{- end }}

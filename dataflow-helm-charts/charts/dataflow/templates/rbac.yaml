@@ -1,0 +1,120 @@
+{{- $jobs := include "dataflow.jobsNamespace" . }}
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: {{ .Values.global.serviceAccountName }}
+  labels:
+    {{- include "dataflow.labels" . | nindent 4 }}
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: {{ .Values.spark.serviceAccount }}
+  namespace: {{ $jobs }}
+  {{- with .Values.spark.serviceAccountAnnotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  labels:
+    {{- include "dataflow.labels" . | nindent 4 }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: {{ include "dataflow.name" . }}-tower
+rules:
+  - apiGroups: [batch]
+    resources: [jobs]
+    verbs: [create, get, list, watch, delete]
+  - apiGroups: [batch]
+    resources: [jobs/status]
+    verbs: [get]
+  - apiGroups: [""]
+    resources: [pods, pods/log]
+    verbs: [get, list, watch, delete]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: {{ include "dataflow.name" . }}-tower
+subjects:
+  - kind: ServiceAccount
+    name: {{ .Values.global.serviceAccountName }}
+    namespace: {{ .Release.Namespace }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: {{ include "dataflow.name" . }}-tower
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: {{ include "dataflow.name" . }}-tower-runs
+  namespace: {{ $jobs }}
+rules:
+  - apiGroups: [batch]
+    resources: [jobs]
+    verbs: [create, get, list, watch, delete]
+  - apiGroups: [""]
+    resources: [pods, pods/log]
+    verbs: [get, list, watch]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: {{ include "dataflow.name" . }}-tower-runs
+  namespace: {{ $jobs }}
+subjects:
+  - kind: ServiceAccount
+    name: {{ .Values.global.serviceAccountName }}
+    namespace: {{ .Release.Namespace }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: {{ include "dataflow.name" . }}-tower-runs
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: {{ include "dataflow.name" . }}-engine
+  namespace: {{ $jobs }}
+rules:
+  - apiGroups: [""]
+    resources: [pods, services, configmaps, persistentvolumeclaims]
+    verbs: [create, get, list, watch, delete, deletecollection, patch]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: {{ include "dataflow.name" . }}-engine
+  namespace: {{ $jobs }}
+subjects:
+  - kind: ServiceAccount
+    name: {{ .Values.spark.serviceAccount }}
+    namespace: {{ $jobs }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: {{ include "dataflow.name" . }}-engine
+{{- if .Values.quota.enabled }}
+---
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: {{ include "dataflow.name" . }}-runs
+  namespace: {{ $jobs }}
+spec:
+  hard:
+    {{- toYaml .Values.quota.hard | nindent 4 }}
+---
+apiVersion: v1
+kind: LimitRange
+metadata:
+  name: {{ include "dataflow.name" . }}-runs
+  namespace: {{ $jobs }}
+spec:
+  limits:
+    - type: Container
+      defaultRequest: {cpu: 100m, memory: 128Mi}
+      default: {cpu: "1", memory: 512Mi}
+{{- end }}

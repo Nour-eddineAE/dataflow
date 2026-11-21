@@ -1,0 +1,9 @@
+fragment RunFields on Run {
+  runId
+  status
+  jobName
+  creationTime
+  startTime
+  endTime
+  tags { key value }
+}

@@ -1,0 +1,6 @@
+mutation StartSensor($selector: SensorSelector!) {
+  startSensor(sensorSelector: $selector) {
+    __typename
+    ... on Error { message }
+  }
+}

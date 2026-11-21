@@ -1,0 +1,5 @@
+project: lab
+owner: platform
+targets:
+  dev:
+    mode: development

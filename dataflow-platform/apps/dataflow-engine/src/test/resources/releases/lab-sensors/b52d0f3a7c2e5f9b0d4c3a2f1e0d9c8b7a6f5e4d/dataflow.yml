@@ -1,0 +1,8 @@
+project: lab-sensors
+description: Readings from the lab
+targets:
+  dev:
+    mode: development
+  prod:
+    mode: production
+    branch: main

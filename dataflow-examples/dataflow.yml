@@ -1,0 +1,8 @@
+project: examples
+description: Two public datasets that show what DataFlow does, testing this thing 
+targets:
+  dev:
+    mode: development
+  prod:
+    mode: production
+    branch: main

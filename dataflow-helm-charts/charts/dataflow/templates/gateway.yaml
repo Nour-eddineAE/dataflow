@@ -1,0 +1,34 @@
+{{- if .Values.gateway.enabled }}
+{{- if ne (include "dataflow.authMode" .) "oidc" }}
+{{- fail "Gateway access requires auth.mode=oidc" }}
+{{- end }}
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: {{ include "dataflow.name" . }}-workspace
+spec:
+  parentRefs:
+    - name: {{ required "gateway.parentName is required" .Values.gateway.parentName }}
+      {{- if .Values.gateway.parentNamespace }}
+      namespace: {{ .Values.gateway.parentNamespace }}
+      {{- end }}
+  hostnames: [{{ required "gateway.hostname is required" .Values.gateway.hostname | quote }}]
+  rules:
+    - matches:
+        - path: {type: PathPrefix, value: /tower}
+      backendRefs:
+        - name: {{ include "dataflow.name" . }}-tower-sign-in
+          port: 4180
+    {{- if .Values.keycloak.enabled }}
+    - matches:
+        - path: {type: PathPrefix, value: /auth}
+      backendRefs:
+        - name: {{ include "dataflow.name" . }}-keycloak
+          port: 8080
+    {{- end }}
+    - matches:
+        - path: {type: PathPrefix, value: /}
+      backendRefs:
+        - name: {{ include "dataflow.name" . }}-workspace
+          port: 8080
+{{- end }}

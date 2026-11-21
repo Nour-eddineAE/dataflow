@@ -1,0 +1,116 @@
+{
+  "properties": [
+    {
+      "name": "dataflow.engine.batching.max-files-per-batch",
+      "description": "Files a streaming flow reads per micro-batch"
+    },
+    {
+      "name": "dataflow.engine.batching.max-records-per-file",
+      "description": "Most rows written per Parquet file"
+    },
+    {
+      "name": "dataflow.engine.cache-dir",
+      "description": "Directory for downloaded sources and task files"
+    },
+    {
+      "name": "dataflow.engine.lake-root",
+      "description": "Where the lake is (s3a://, abfss://, gs://, file:); its scheme picks the connector settings"
+    },
+    {
+      "name": "dataflow.engine.maintenance.enabled",
+      "description": "Run OPTIMIZE and VACUUM after a run"
+    },
+    {
+      "name": "dataflow.engine.maintenance.interval",
+      "description": "Least time between two maintenance passes of a dataset"
+    },
+    {
+      "name": "dataflow.engine.maintenance.retention-hours",
+      "description": "Hours deleted Delta files are kept before VACUUM removes them"
+    },
+    {
+      "name": "dataflow.engine.pipelines-location",
+      "description": "Folder of specs used when a run names no release (development)"
+    },
+    {
+      "name": "dataflow.engine.releases-root",
+      "description": "Where releases are read from"
+    },
+    {
+      "name": "dataflow.engine.serving.collection",
+      "description": "ClickHouse named collection that reaches the lake"
+    },
+    {
+      "name": "dataflow.engine.serving.connect-timeout",
+      "description": "How long a run waits to connect to ClickHouse"
+    },
+    {
+      "name": "dataflow.engine.serving.database",
+      "description": "ClickHouse database the serving flow publishes to"
+    },
+    {
+      "name": "dataflow.engine.serving.enabled",
+      "description": "Publish tables to ClickHouse at the end of a run"
+    },
+    {
+      "name": "dataflow.engine.serving.password",
+      "description": "Password of the ClickHouse service user"
+    },
+    {
+      "name": "dataflow.engine.serving.refresh-every",
+      "description": "Refresh interval of copy tables' materialized views"
+    },
+    {
+      "name": "dataflow.engine.serving.timeout",
+      "description": "How long a run waits for one ClickHouse statement, a table copy included"
+    },
+    {
+      "name": "dataflow.engine.serving.url",
+      "description": "ClickHouse HTTP address"
+    },
+    {
+      "name": "dataflow.engine.serving.user",
+      "description": "ClickHouse service user"
+    },
+    {
+      "name": "dataflow.engine.sources.connect-timeout",
+      "description": "How long a run waits to connect to a source URL"
+    },
+    {
+      "name": "dataflow.engine.sources.timeout",
+      "description": "How long a run waits for one source file to download; raise it for large files on slow links"
+    },
+    {
+      "name": "dataflow.engine.tasks.clean",
+      "description": "Lake locations a clean task removes, base64, one per line (set by the tower)"
+    },
+    {
+      "name": "dataflow.engine.tasks.draft",
+      "description": "Draft spec of a preview task, base64 (set by the tower)"
+    },
+    {
+      "name": "dataflow.engine.tasks.sample-rows",
+      "description": "Rows a preview or inference task samples"
+    },
+    {
+      "name": "dataflow.engine.tasks.transformations",
+      "description": "Draft transformation sources of a preview task, base64 (set by the tower)"
+    },
+    {
+      "name": "dataflow.spark.app-name",
+      "description": "Spark application name"
+    },
+    {
+      "name": "dataflow.spark.checkpoint-managers",
+      "description": "Streaming checkpoint manager per lake scheme"
+    },
+    {
+      "name": "dataflow.spark.config",
+      "description": "Spark settings applied to every session (spark profile)"
+    },
+    {
+      "name": "dataflow.spark.stores",
+      "description": "Spark settings per storage scheme, applied for the roots a run touches"
+    }
+  ]
+}

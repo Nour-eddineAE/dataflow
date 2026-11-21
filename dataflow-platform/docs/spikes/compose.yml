@@ -1,0 +1,108 @@
+name: spikes
+
+services:
+  rustfs:
+    image: rustfs/rustfs:1.0.3
+    container_name: spike-rustfs
+    command: [ "/data" ]
+    env_file: .secrets/rustfs.env
+    environment:
+      RUSTFS_ADDRESS: ":9000"
+      RUSTFS_CONSOLE_ADDRESS: ":9001"
+      RUSTFS_CONSOLE_ENABLE: "true"
+    ports:
+      - "19000:9000"
+      - "19001:9001"
+    volumes:
+      - rustfs-data:/data
+    healthcheck:
+      test: [ "CMD-SHELL", "curl -fsS http://localhost:9000/health || wget -qO- http://localhost:9000/health" ]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    mem_limit: 512m
+    networks: [ spike ]
+
+  clickhouse:
+    image: clickhouse/clickhouse-server:26.10.2
+    container_name: spike-clickhouse
+    profiles: [ "s2" ]
+    env_file: [ .secrets/clickhouse.env, .secrets/rustfs.env, .secrets/minio.env ]
+    environment:
+      CLICKHOUSE_DB: arrivals
+      CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT: "1"
+    ports:
+      - "18123:8123"
+    volumes:
+      - clickhouse-data:/var/lib/clickhouse
+      - ./s2/config.d/low-memory.xml:/etc/clickhouse-server/config.d/low-memory.xml:ro
+      - ./s2/config.d/lake.xml:/etc/clickhouse-server/config.d/lake.xml:ro
+      - ./s2/users.d/lake-access.xml:/etc/clickhouse-server/users.d/lake-access.xml:ro
+    ulimits:
+      nofile: { soft: 262144, hard: 262144 }
+    mem_limit: 1280m
+    networks: [ spike, dataflow ]
+
+  dagster-postgres:
+    image: postgres:16.8
+    container_name: spike-dagster-postgres
+    profiles: [ "s3" ]
+    env_file: .secrets/dagster-pg.env
+    volumes:
+      - dagster-pg:/var/lib/postgresql/data
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U dagster" ]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    networks: [ spike ]
+
+  dagster-code:
+    build: ./s3
+    image: spike-dagster:1.13.26
+    container_name: spike-dagster-code
+    profiles: [ "s3" ]
+    command: [ "dagster", "code-server", "start", "-h", "0.0.0.0", "-p", "4000", "-f", "defs.py" ]
+    env_file: .secrets/dagster-pg.env
+    environment:
+      HOST_JAVA_DIR: ${PWD}/s3/java
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    depends_on:
+      dagster-postgres: { condition: service_healthy }
+    networks: [ spike ]
+
+  dagster-webserver:
+    image: spike-dagster:1.13.26
+    container_name: spike-dagster-webserver
+    profiles: [ "s3" ]
+    command: [ "dagster-webserver", "-h", "0.0.0.0", "-p", "3000", "-w", "/opt/dagster/home/workspace.yaml" ]
+    env_file: .secrets/dagster-pg.env
+    ports:
+      - "13000:3000"
+    depends_on:
+      dagster-code: { condition: service_started }
+    networks: [ spike ]
+
+  dagster-daemon:
+    image: spike-dagster:1.13.26
+    container_name: spike-dagster-daemon
+    profiles: [ "s3" ]
+    command: [ "dagster-daemon", "run", "-w", "/opt/dagster/home/workspace.yaml" ]
+    env_file: .secrets/dagster-pg.env
+    depends_on:
+      dagster-code: { condition: service_started }
+    networks: [ spike ]
+
+volumes:
+  rustfs-data:
+  clickhouse-data:
+  dagster-pg:
+  ivy-cache:
+
+networks:
+  spike:
+    name: spike
+  dataflow:
+    name: dataflow_default
+    external: true

@@ -1,0 +1,17 @@
+.df-key {
+    align-items: center;
+    background: transparent;
+    border: 1px solid var(--df-border-strong);
+    border-radius: var(--mantine-radius-sm);
+    color: var(--mantine-color-dimmed);
+    display: inline-flex;
+    font-family: var(--mantine-font-family);
+    font-size: var(--mantine-font-size-caption);
+    font-weight: 500;
+    gap: 2px;
+    height: 18px;
+    justify-content: center;
+    line-height: 1;
+    min-width: 18px;
+    padding: 0 4px;
+}

@@ -1,0 +1,9 @@
+dataset: typo
+version: 3
+source: { path: /data/x.csv, format: csv }
+silver:
+  columns:
+    - { name: id, type: string, from: id }
+history:
+  keys: [id]
+  sequence_by: id

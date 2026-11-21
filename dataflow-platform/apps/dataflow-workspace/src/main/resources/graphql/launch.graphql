@@ -1,0 +1,8 @@
+mutation Launch($params: ExecutionParams!) {
+  launchRun(executionParams: $params) {
+    __typename
+    ... on LaunchRunSuccess { run { runId } }
+    ... on RunConfigValidationInvalid { errors { message } }
+    ... on Error { message }
+  }
+}

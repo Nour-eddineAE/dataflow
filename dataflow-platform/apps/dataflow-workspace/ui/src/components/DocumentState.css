@@ -1,0 +1,24 @@
+.df-document-state {
+    align-items: center;
+    display: inline-flex;
+    flex: none;
+    gap: 6px;
+    min-width: 64px;
+    white-space: nowrap;
+}
+
+.df-document-state-dot {
+    background: var(--mantine-color-dimmed);
+    border-radius: 50%;
+    height: 7px;
+    transition: background-color var(--df-motion-base) ease;
+    width: 7px;
+}
+
+.df-document-state[data-status='draft'] .df-document-state-dot {
+    background: var(--df-active-text);
+}
+
+.df-document-state[data-status='unsaved'] .df-document-state-dot {
+    background: var(--df-warning);
+}

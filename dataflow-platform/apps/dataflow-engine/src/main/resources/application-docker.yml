@@ -1,0 +1,50 @@
+env:
+  pipelines:
+    location: ${PIPELINES_LOCATION:/pipelines}
+  releases:
+    root: ${RELEASES_ROOT:s3a://${RELEASES_BUCKET:releases}}
+  lake:
+    root: ${LAKE_ROOT:s3a://${LAKE_BUCKET:lake}}
+    endpoint: ${LAKE_ENDPOINT:}
+    access-key: ${LAKE_ACCESS_KEY:}
+    secret-key: ${LAKE_SECRET_KEY:}
+    s3:
+      region: ${LAKE_S3_REGION:us-east-1}
+      path-style: ${LAKE_S3_PATH_STYLE:true}
+      ssl: ${LAKE_S3_SSL:false}
+      credentials-provider: ${LAKE_S3_CREDENTIALS_PROVIDER:}
+    azure:
+      token-provider: ${LAKE_AZURE_TOKEN_PROVIDER:org.apache.hadoop.fs.azurebfs.oauth2.WorkloadIdentityTokenProvider}
+      tenant: ${AZURE_TENANT_ID:}
+      client-id: ${AZURE_CLIENT_ID:}
+      token-file: ${AZURE_FEDERATED_TOKEN_FILE:}
+    gcs:
+      auth-type: ${LAKE_GCS_AUTH_TYPE:COMPUTE_ENGINE}
+      keyfile: ${GOOGLE_APPLICATION_CREDENTIALS:}
+  engine:
+    cache-dir: ${ENGINE_CACHE_DIR}
+    sources:
+      timeout: ${ENGINE_SOURCE_TIMEOUT:10m}
+      connect-timeout: ${ENGINE_SOURCE_CONNECT_TIMEOUT:30s}
+    maintenance:
+      interval: ${ENGINE_MAINTENANCE_INTERVAL}
+      retention-hours: ${ENGINE_MAINTENANCE_RETENTION_HOURS}
+    tasks:
+      draft: ${ENGINE_DRAFT:}
+      transformations: ${ENGINE_TRANSFORMATIONS:}
+      clean: ${ENGINE_CLEAN:}
+  serving:
+    enabled: ${SERVING_ENABLED}
+    url: ${CLICKHOUSE_URL}
+    user: ${CLICKHOUSE_USER}
+    password: ${CLICKHOUSE_PASSWORD}
+    timeout: ${ENGINE_SERVING_TIMEOUT:10m}
+    connect-timeout: ${ENGINE_SERVING_CONNECT_TIMEOUT:10s}
+  spark:
+    master: ${SPARK_MASTER}
+    sql:
+      shuffle-partitions: ${SPARK_SQL_SHUFFLE_PARTITIONS}
+    delta-snapshot-partitions: ${SPARK_DELTA_SNAPSHOT_PARTITIONS}
+    event-log:
+      enabled: ${SPARK_EVENT_LOG_ENABLED}
+      dir: ${SPARK_EVENT_LOG_DIR}

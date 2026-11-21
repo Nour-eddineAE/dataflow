@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<configuration>
+
+    <statusListener class="ch.qos.logback.core.status.NopStatusListener"/>
+
+    <appender name="JSON" class="ch.qos.logback.core.ConsoleAppender">
+        <encoder class="net.logstash.logback.encoder.LogstashEncoder">
+            <includeMdcKeyName>dataset</includeMdcKeyName>
+            <includeMdcKeyName>runId</includeMdcKeyName>
+            <includeMdcKeyName>flow</includeMdcKeyName>
+        </encoder>
+    </appender>
+
+    <logger name="org.apache.spark" level="WARN"/>
+    <logger name="org.apache.hadoop" level="WARN"/>
+    <logger name="org.apache.parquet" level="WARN"/>
+    <logger name="io.delta" level="WARN"/>
+    <logger name="org.apache.spark.sql.catalyst.util.SparkStringUtils" level="ERROR"/>
+    <logger name="org.apache.spark.network.util.JavaUtils" level="ERROR"/>
+    <logger name="org.apache.hadoop.util.NativeCodeLoader" level="ERROR"/>
+    <logger name="org.apache.hadoop.metrics2.impl.MetricsConfig" level="ERROR"/>
+    <logger name="org.apache.hadoop.fs.s3a.S3ABlockOutputStream" level="ERROR"/>
+    <logger name="org.apache.spark.sql.execution.streaming.ResolveWriteToStream" level="ERROR"/>
+    <logger name="org.apache.spark.sql.execution.streaming.runtime.ResolveWriteToStream" level="ERROR"/>
+    <logger name="org.apache.spark.rdd.MapPartitionsRDD" level="ERROR"/>
+    <logger name="org.apache.spark.sql.util.CaseInsensitiveStringMap" level="ERROR"/>
+    <logger name="org.apache.spark.util.SparkStringUtils" level="ERROR"/>
+    <logger name="org.apache.spark.scheduler.FairSchedulableBuilder" level="ERROR"/>
+    <logger name="com.ulisesbocchio.jasyptspringboot" level="WARN"/>
+    <logger name="org.hibernate.validator" level="WARN"/>
+
+    <root level="INFO">
+        <appender-ref ref="JSON"/>
+    </root>
+
+</configuration>

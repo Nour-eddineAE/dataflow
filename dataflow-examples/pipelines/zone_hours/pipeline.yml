@@ -1,0 +1,36 @@
+dataset: zone_hours
+version: 3
+owner: analytics
+description: Taxi trips per borough and hour of day, built from the taxi_trips pipeline whenever it lands
+
+inputs:
+  trips: taxi_trips.current
+  zones: taxi_trips.reference.taxi_zones
+
+gold:
+  - name: zoned_trips
+    materialize: false
+    from: trips
+    steps:
+      - join: { with: zones, type: left, on: { pickupLocationId: LocationID }, prefix: zone }
+      - derive: { hour: "hour(pickupTime)" }
+
+  - name: borough_hours
+    from: zoned_trips
+    steps:
+      - filter: "zoneBorough IS NOT NULL"
+      - aggregate:
+          by: [zoneBorough, hour]
+          measures: { trips: "count(*)", revenue: "round(sum(fareAmount), 2)", avgMinutes: "round(avg(tripMinutes), 1)" }
+
+  - name: busiest_hours
+    sql: |
+      SELECT borough, hour, trips
+      FROM (SELECT zoneBorough AS borough, hour, trips,
+                   rank() OVER (PARTITION BY zoneBorough ORDER BY trips DESC) AS position
+            FROM borough_hours)
+      WHERE position <= 3
+
+serve:
+  - { from: gold.borough_hours, table: zone_hours,         mode: view }
+  - { from: gold.busiest_hours, table: zone_busiest_hours, mode: copy, order-by: "(borough, hour)" }

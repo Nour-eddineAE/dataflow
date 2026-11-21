@@ -1,0 +1,119 @@
+name: CI
+
+on:
+  workflow_dispatch:
+  push:
+    paths-ignore:
+      - "docs/**"
+      - "**.md"
+      - ".idea/**"
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  java:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    container: maven:3.9.15-eclipse-temurin-21
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/cache@v6
+        with:
+          path: .m2/repository
+          key: maven-${{ hashFiles('**/pom.xml', '.mvn/maven.config') }}
+          restore-keys: maven-
+      - run: mvn -B -ntp -Dmaven.repo.local=.m2/repository verify dependency:analyze-only
+      - uses: actions/upload-artifact@v7
+        if: failure()
+        with:
+          name: java-test-reports
+          path: "**/target/surefire-reports/*.txt"
+          retention-days: 7
+
+  ui:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: apps/dataflow-workspace/ui
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "22.17"
+          cache: npm
+          cache-dependency-path: apps/dataflow-workspace/ui/package-lock.json
+      - run: npm ci --no-audit --no-fund
+      - run: npm run typecheck
+      - run: npm run lint
+      - run: npm test
+      - run: npm run build
+
+  tower:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: tower
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: tower/pyproject.toml
+      - run: pip install -e ".[test]"
+      - run: pytest -q
+
+  literals:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+      - run: pip install ruff==0.17.3 pyyaml==6.0.3
+      - run: ruff check tower/src cli/src
+      - run: python scripts/find-literals.py --check --scans-only
+      - run: python scripts/settings-reference.py --check
+      - run: python scripts/package-table.py
+      - name: No comments in UI or Python source
+        run: |
+          if grep -rnE '^\s*(//|/\*)' apps/dataflow-workspace/ui/src --include='*.ts' --include='*.tsx' --exclude='*.test.*' \
+            || grep -rnE '^\s*#' tower/src cli/src --include='*.py'; then
+            echo "::error::Comments go in docs/, not in code"
+            exit 1
+          fi
+
+  images:
+    if: github.ref == 'refs/heads/master' || startsWith(github.ref, 'refs/heads/ci/') || startsWith(github.ref, 'refs/heads/k8s/')
+    needs: [java, ui, tower, literals]
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - {image: engine, context: ., target: engine}
+          - {image: workspace, context: ., target: workspace}
+          - {image: engine-k8s, context: ., target: engine-k8s, parked: true}
+          - {image: tower, context: tower}
+          - {image: tower-k8s, context: tower, extras: kubernetes, parked: true}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: docker/setup-buildx-action@v4
+      - uses: docker/build-push-action@v7
+        if: ${{ !matrix.parked || github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/heads/k8s/') }}
+        with:
+          context: ${{ matrix.context }}
+          target: ${{ matrix.target }}
+          build-args: EXTRAS=${{ matrix.extras }}
+          push: false
+          cache-from: type=gha,scope=${{ matrix.image }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.image }}

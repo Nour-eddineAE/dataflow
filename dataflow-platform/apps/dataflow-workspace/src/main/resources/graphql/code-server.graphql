@@ -1,0 +1,12 @@
+query CodeServer($selector: PipelineSelector!, $runConfig: RunConfigData) {
+  workspaceOrError {
+    __typename
+    ... on Workspace {
+      locationEntries { name locationOrLoadError { __typename ... on PythonError { message } } }
+    }
+  }
+  executionPlanOrError(pipeline: $selector, runConfigData: $runConfig, mode: "default") {
+    __typename
+    ... on PythonError { message }
+  }
+}

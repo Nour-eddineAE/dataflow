@@ -1,0 +1,34 @@
+{
+  "clientId": "workspace",
+  "name": "DataFlow Workspace",
+  "enabled": true,
+  "publicClient": true,
+  "standardFlowEnabled": true,
+  "directAccessGrantsEnabled": false,
+  "implicitFlowEnabled": false,
+  "redirectUris": [
+    "${WORKSPACE_URL}/*",
+    "http://localhost:5173/*"
+  ],
+  "webOrigins": [
+    "+"
+  ],
+  "attributes": {
+    "pkce.code.challenge.method": "S256",
+    "post.logout.redirect.uris": "${WORKSPACE_URL}/*##http://localhost:5173/*"
+  },
+  "protocolMappers": [
+    {
+      "name": "groups",
+      "protocol": "openid-connect",
+      "protocolMapper": "oidc-group-membership-mapper",
+      "config": {
+        "claim.name": "groups",
+        "full.path": "false",
+        "id.token.claim": "true",
+        "access.token.claim": "true",
+        "userinfo.token.claim": "true"
+      }
+    }
+  ]
+}

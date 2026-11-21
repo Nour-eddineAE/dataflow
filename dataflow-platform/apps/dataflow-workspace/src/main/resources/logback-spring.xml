@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<configuration>
+
+    <appender name="JSON" class="ch.qos.logback.core.ConsoleAppender">
+        <encoder class="net.logstash.logback.encoder.LogstashEncoder"/>
+    </appender>
+
+    <logger name="org.apache.spark" level="WARN"/>
+    <logger name="org.apache.hadoop" level="WARN"/>
+    <logger name="org.eclipse.jgit" level="WARN"/>
+    <logger name="org.jooq.Constants" level="WARN"/>
+    <logger name="com.ulisesbocchio.jasyptspringboot" level="WARN"/>
+    <logger name="org.hibernate.validator" level="WARN"/>
+
+    <root level="INFO">
+        <appender-ref ref="JSON"/>
+    </root>
+
+</configuration>

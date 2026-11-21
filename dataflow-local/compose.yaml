@@ -1,0 +1,7 @@
+name: dataflow
+
+include:
+  - storage/compose.yaml
+  - sign-in/compose.yaml
+  - platform/compose.yaml
+  - monitoring/compose.yaml

@@ -1,0 +1,54 @@
+.df-matrix {
+    column-gap: 3px;
+    display: grid;
+    row-gap: 2px;
+}
+
+.df-matrix-row {
+    display: contents;
+}
+
+.df-matrix-flow {
+    align-items: center;
+    color: var(--mantine-color-dimmed);
+    display: flex;
+    font-size: var(--mantine-font-size-xs);
+    height: 24px;
+    padding-right: 12px;
+}
+
+.df-matrix-cell {
+    align-items: flex-end;
+    border-bottom: 1px solid var(--df-border);
+    display: flex;
+    height: 24px;
+    justify-content: center;
+}
+
+.df-matrix-bar {
+    border: 0;
+    max-width: 16px;
+    border-radius: var(--mantine-radius-xs) var(--mantine-radius-xs) 0 0;
+    cursor: pointer;
+    opacity: 0.8;
+    padding: 0;
+    transition: opacity var(--df-motion-instant) var(--df-ease);
+    width: 100%;
+}
+
+.df-matrix-bar:hover,
+.df-matrix-bar:focus-visible {
+    opacity: 1;
+}
+
+.df-matrix-none {
+    background: var(--df-border);
+    border-radius: 50%;
+    height: 3px;
+    margin-bottom: 4px;
+    width: 3px;
+}
+
+.df-matrix-axis {
+    margin-top: 6px;
+}

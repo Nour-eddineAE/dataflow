@@ -1,0 +1,7 @@
+mutation Backfill($params: LaunchBackfillParams!) {
+  launchPartitionBackfill(backfillParams: $params) {
+    __typename
+    ... on LaunchBackfillSuccess { backfillId }
+    ... on Error { message }
+  }
+}

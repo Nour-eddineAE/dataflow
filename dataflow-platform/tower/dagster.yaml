@@ -1,0 +1,38 @@
+storage:
+  postgres:
+    postgres_db:
+      username: { env: DAGSTER_PG_USER }
+      password: { env: DAGSTER_PG_PASSWORD }
+      hostname: { env: DAGSTER_PG_HOST }
+      db_name: { env: DAGSTER_PG_DB }
+      port: 5432
+
+run_coordinator:
+  module: dagster.core.run_coordinator
+  class: QueuedRunCoordinator
+  config:
+    max_user_code_failure_retries: 5
+    user_code_failure_retry_delay: 60
+
+run_launcher:
+  module: dagster.core.launcher
+  class: DefaultRunLauncher
+
+concurrency:
+  runs:
+    max_concurrent_runs: 2
+  pools:
+    default_limit: 1
+
+run_monitoring:
+  enabled: true
+  start_timeout_seconds: 300
+  poll_interval_seconds: 60
+  free_slots_after_run_end_seconds: 60
+
+run_retries:
+  enabled: true
+  max_retries: 1
+
+telemetry:
+  enabled: false

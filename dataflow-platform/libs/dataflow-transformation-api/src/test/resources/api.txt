@@ -1,0 +1,17 @@
+annotation com.dataflow.transformation.DataTransformation
+  DataTransformation.int version() default 1
+  DataTransformation.java.lang.String name()
+interface com.dataflow.transformation.Lake
+  Lake.org.apache.spark.sql.Dataset<org.apache.spark.sql.Row> files(java.lang.String, java.lang.String)
+  Lake.org.apache.spark.sql.Dataset<org.apache.spark.sql.Row> files(java.lang.String, java.lang.String, java.util.Map<java.lang.String, java.lang.String>)
+  Lake.org.apache.spark.sql.Dataset<org.apache.spark.sql.Row> table(java.lang.String)
+record com.dataflow.transformation.NoInputs
+  NoInputs.boolean equals(java.lang.Object)
+  NoInputs.int hashCode()
+  NoInputs.java.lang.String toString()
+record com.dataflow.transformation.NoParams
+  NoParams.boolean equals(java.lang.Object)
+  NoParams.int hashCode()
+  NoParams.java.lang.String toString()
+interface com.dataflow.transformation.Transformation<I extends java.lang.Record, P extends java.lang.Record>
+  Transformation.org.apache.spark.sql.Dataset<org.apache.spark.sql.Row> apply(I, P)

@@ -1,0 +1,883 @@
+{
+  "uid": "dataflow-runs",
+  "title": "Pipeline · Runs",
+  "description": "Every run of every pipeline, from the event log (serving.run_events: one Delta event log per dataset, read in place).",
+  "tags": [
+    "dataflow",
+    "pipeline"
+  ],
+  "editable": true,
+  "graphTooltip": 1,
+  "schemaVersion": 39,
+  "version": 1,
+  "timezone": "browser",
+  "refresh": "1m",
+  "liveNow": false,
+  "time": {
+    "from": "now-7d",
+    "to": "now"
+  },
+  "timepicker": {
+    "refresh_intervals": [
+      "30s",
+      "1m",
+      "5m",
+      "15m",
+      "1h"
+    ]
+  },
+  "fiscalYearStartMonth": 0,
+  "weekStart": "",
+  "templating": {
+    "list": [
+      {
+        "name": "dataset",
+        "label": "Dataset",
+        "type": "query",
+        "datasource": {
+          "type": "grafana-clickhouse-datasource",
+          "uid": "dataflow-clickhouse"
+        },
+        "query": "SELECT DISTINCT dataset FROM serving.run_events ORDER BY dataset",
+        "definition": "SELECT DISTINCT dataset FROM serving.run_events ORDER BY dataset",
+        "refresh": 2,
+        "multi": true,
+        "includeAll": true,
+        "current": {
+          "selected": true,
+          "text": [
+            "All"
+          ],
+          "value": [
+            "$__all"
+          ]
+        },
+        "sort": 1
+      }
+    ]
+  },
+  "annotations": {
+    "list": [
+      {
+        "builtIn": 1,
+        "datasource": {
+          "type": "grafana",
+          "uid": "-- Grafana --"
+        },
+        "enable": true,
+        "hide": true,
+        "iconColor": "rgba(0, 211, 255, 1)",
+        "name": "Annotations & Alerts",
+        "type": "dashboard"
+      },
+      {
+        "name": "Runs",
+        "enable": true,
+        "iconColor": "rgba(184, 119, 217, 0.55)",
+        "datasource": {
+          "type": "grafana-clickhouse-datasource",
+          "uid": "dataflow-clickhouse"
+        },
+        "target": {
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "dataflow-clickhouse"
+          },
+          "editorType": "sql",
+          "format": 1,
+          "queryType": "table",
+          "refId": "Anno",
+          "rawSql": "SELECT started_at AS time, ended_at AS timeEnd, concat(dataset, ' · ', lower(status), ' · ', trigger) AS text FROM serving.run_events WHERE event_type = 'run' AND status IN ('COMPLETED', 'FAILED') AND $__timeFilter(started_at)"
+        }
+      }
+    ]
+  },
+  "links": [
+    {
+      "title": "Pipeline",
+      "type": "dashboards",
+      "tags": [
+        "pipeline"
+      ],
+      "asDropdown": true,
+      "includeVars": true,
+      "keepTime": true
+    }
+  ],
+  "panels": [
+    {
+      "type": "stat",
+      "title": "Runs",
+      "description": "Runs started in the time range.",
+      "datasource": {
+        "type": "grafana-clickhouse-datasource",
+        "uid": "dataflow-clickhouse"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "dataflow-clickhouse"
+          },
+          "editorType": "sql",
+          "format": 1,
+          "queryType": "table",
+          "rawSql": "WITH runs AS (\n    SELECT run_id, dataset,\n           anyIf(e.partition, e.event_type = 'run') AS run_partition,\n           anyIf(e.trigger, e.event_type = 'run') AS run_trigger,\n           minIf(e.started_at, e.event_type = 'run') AS started,\n           maxIf(e.ended_at, e.event_type = 'run' AND e.status IN ('COMPLETED', 'FAILED')) AS ended,\n           multiIf(run_id IN (SELECT run_id FROM serving.run_verdicts FINAL WHERE status = 'FAILED'), 'FAILED',\n                   run_id IN (SELECT run_id FROM serving.run_verdicts FINAL WHERE status = 'CANCELED'), 'CANCELED',\n                   countIf(e.event_type = 'run' AND e.status = 'FAILED') > 0, 'FAILED',\n                   countIf(e.event_type = 'run' AND e.status = 'COMPLETED') > 0, 'COMPLETED',\n                   max(e.ts) < now() - INTERVAL 2 HOUR, 'STALLED', 'RUNNING') AS outcome,\n           sumIf(e.rows_out, e.event_type = 'flow_progress' AND e.flow = 'bronze') AS ingested_rows,\n           sumIf(e.rows_dropped, e.event_type = 'flow_progress' AND e.flow = 'silver') AS quarantined,\n           sumIf(e.rows_out, e.event_type = 'flow_progress' AND e.flow = 'history') AS merged\n    FROM serving.run_events AS e\n    WHERE e.dataset IN (${dataset:singlequote})\n    GROUP BY run_id, dataset\n) SELECT count() FROM runs WHERE $__timeFilter(started)",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "#8AB8FF"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "#8AB8FF",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "none",
+        "graphMode": "none",
+        "textMode": "value",
+        "justifyMode": "center",
+        "orientation": "auto",
+        "wideLayout": true
+      },
+      "id": 1,
+      "gridPos": {
+        "x": 0,
+        "y": 0,
+        "w": 4,
+        "h": 4
+      }
+    },
+    {
+      "type": "stat",
+      "title": "Completed",
+      "description": "Share of runs in the range that completed.",
+      "datasource": {
+        "type": "grafana-clickhouse-datasource",
+        "uid": "dataflow-clickhouse"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "dataflow-clickhouse"
+          },
+          "editorType": "sql",
+          "format": 1,
+          "queryType": "table",
+          "rawSql": "WITH runs AS (\n    SELECT run_id, dataset,\n           anyIf(e.partition, e.event_type = 'run') AS run_partition,\n           anyIf(e.trigger, e.event_type = 'run') AS run_trigger,\n           minIf(e.started_at, e.event_type = 'run') AS started,\n           maxIf(e.ended_at, e.event_type = 'run' AND e.status IN ('COMPLETED', 'FAILED')) AS ended,\n           multiIf(run_id IN (SELECT run_id FROM serving.run_verdicts FINAL WHERE status = 'FAILED'), 'FAILED',\n                   run_id IN (SELECT run_id FROM serving.run_verdicts FINAL WHERE status = 'CANCELED'), 'CANCELED',\n                   countIf(e.event_type = 'run' AND e.status = 'FAILED') > 0, 'FAILED',\n                   countIf(e.event_type = 'run' AND e.status = 'COMPLETED') > 0, 'COMPLETED',\n                   max(e.ts) < now() - INTERVAL 2 HOUR, 'STALLED', 'RUNNING') AS outcome,\n           sumIf(e.rows_out, e.event_type = 'flow_progress' AND e.flow = 'bronze') AS ingested_rows,\n           sumIf(e.rows_dropped, e.event_type = 'flow_progress' AND e.flow = 'silver') AS quarantined,\n           sumIf(e.rows_out, e.event_type = 'flow_progress' AND e.flow = 'history') AS merged\n    FROM serving.run_events AS e\n    WHERE e.dataset IN (${dataset:singlequote})\n    GROUP BY run_id, dataset\n) SELECT countIf(outcome = 'COMPLETED') / greatest(count(), 1) FROM runs WHERE $__timeFilter(started)",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "color": {
+            "mode": "thresholds",
+            "fixedColor": "#8AB8FF"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "#F2495C",
+                "value": null
+              },
+              {
+                "color": "#FADE2A",
+                "value": 0.8
+              },
+              {
+                "color": "#73BF69",
+                "value": 0.95
+              }
+            ]
+          },
+          "decimals": 0
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "value",
+        "justifyMode": "center",
+        "orientation": "auto",
+        "wideLayout": true
+      },
+      "id": 2,
+      "gridPos": {
+        "x": 4,
+        "y": 0,
+        "w": 4,
+        "h": 4
+      }
+    },
+    {
+      "type": "stat",
+      "title": "Failed",
+      "description": "Runs that failed in the range. A retry is a new run.",
+      "datasource": {
+        "type": "grafana-clickhouse-datasource",
+        "uid": "dataflow-clickhouse"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "dataflow-clickhouse"
+          },
+          "editorType": "sql",
+          "format": 1,
+          "queryType": "table",
+          "rawSql": "WITH runs AS (\n    SELECT run_id, dataset,\n           anyIf(e.partition, e.event_type = 'run') AS run_partition,\n           anyIf(e.trigger, e.event_type = 'run') AS run_trigger,\n           minIf(e.started_at, e.event_type = 'run') AS started,\n           maxIf(e.ended_at, e.event_type = 'run' AND e.status IN ('COMPLETED', 'FAILED')) AS ended,\n           multiIf(run_id IN (SELECT run_id FROM serving.run_verdicts FINAL WHERE status = 'FAILED'), 'FAILED',\n                   run_id IN (SELECT run_id FROM serving.run_verdicts FINAL WHERE status = 'CANCELED'), 'CANCELED',\n                   countIf(e.event_type = 'run' AND e.status = 'FAILED') > 0, 'FAILED',\n                   countIf(e.event_type = 'run' AND e.status = 'COMPLETED') > 0, 'COMPLETED',\n                   max(e.ts) < now() - INTERVAL 2 HOUR, 'STALLED', 'RUNNING') AS outcome,\n           sumIf(e.rows_out, e.event_type = 'flow_progress' AND e.flow = 'bronze') AS ingested_rows,\n           sumIf(e.rows_dropped, e.event_type = 'flow_progress' AND e.flow = 'silver') AS quarantined,\n           sumIf(e.rows_out, e.event_type = 'flow_progress' AND e.flow = 'history') AS merged\n    FROM serving.run_events AS e\n    WHERE e.dataset IN (${dataset:singlequote})\n    GROUP BY run_id, dataset\n) SELECT countIf(outcome = 'FAILED') FROM runs WHERE $__timeFilter(started)",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "color": {
+            "mode": "thresholds",
+            "fixedColor": "#8AB8FF"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "#73BF69",
+                "value": null
+              },
+              {
+                "color": "#F2495C",
+                "value": 1
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "value",
+        "justifyMode": "center",
+        "orientation": "auto",
+        "wideLayout": true
+      },
+      "id": 3,
+      "gridPos": {
+        "x": 8,
+        "y": 0,
+        "w": 4,
+        "h": 4
+      }
+    },
+    {
+      "type": "stat",
+      "title": "Running",
+      "description": "Runs that started and have not finished yet.",
+      "datasource": {
+        "type": "grafana-clickhouse-datasource",
+        "uid": "dataflow-clickhouse"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "dataflow-clickhouse"
+          },
+          "editorType": "sql",
+          "format": 1,
+          "queryType": "table",
+          "rawSql": "WITH runs AS (\n    SELECT run_id, dataset,\n           anyIf(e.partition, e.event_type = 'run') AS run_partition,\n           anyIf(e.trigger, e.event_type = 'run') AS run_trigger,\n           minIf(e.started_at, e.event_type = 'run') AS started,\n           maxIf(e.ended_at, e.event_type = 'run' AND e.status IN ('COMPLETED', 'FAILED')) AS ended,\n           multiIf(run_id IN (SELECT run_id FROM serving.run_verdicts FINAL WHERE status = 'FAILED'), 'FAILED',\n                   run_id IN (SELECT run_id FROM serving.run_verdicts FINAL WHERE status = 'CANCELED'), 'CANCELED',\n                   countIf(e.event_type = 'run' AND e.status = 'FAILED') > 0, 'FAILED',\n                   countIf(e.event_type = 'run' AND e.status = 'COMPLETED') > 0, 'COMPLETED',\n                   max(e.ts) < now() - INTERVAL 2 HOUR, 'STALLED', 'RUNNING') AS outcome,\n           sumIf(e.rows_out, e.event_type = 'flow_progress' AND e.flow = 'bronze') AS ingested_rows,\n           sumIf(e.rows_dropped, e.event_type = 'flow_progress' AND e.flow = 'silver') AS quarantined,\n           sumIf(e.rows_out, e.event_type = 'flow_progress' AND e.flow = 'history') AS merged\n    FROM serving.run_events AS e\n    WHERE e.dataset IN (${dataset:singlequote})\n    GROUP BY run_id, dataset\n) SELECT countIf(outcome = 'RUNNING') FROM runs",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "#8AB8FF"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "#8AB8FF",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "none",
+        "graphMode": "none",
+        "textMode": "value",
+        "justifyMode": "center",
+        "orientation": "auto",
+        "wideLayout": true
+      },
+      "id": 4,
+      "gridPos": {
+        "x": 12,
+        "y": 0,
+        "w": 4,
+        "h": 4
+      }
+    },
+    {
+      "type": "stat",
+      "title": "Rows ingested",
+      "description": "New bronze rows written by the runs in the range.",
+      "datasource": {
+        "type": "grafana-clickhouse-datasource",
+        "uid": "dataflow-clickhouse"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "dataflow-clickhouse"
+          },
+          "editorType": "sql",
+          "format": 1,
+          "queryType": "table",
+          "rawSql": "WITH runs AS (\n    SELECT run_id, dataset,\n           anyIf(e.partition, e.event_type = 'run') AS run_partition,\n           anyIf(e.trigger, e.event_type = 'run') AS run_trigger,\n           minIf(e.started_at, e.event_type = 'run') AS started,\n           maxIf(e.ended_at, e.event_type = 'run' AND e.status IN ('COMPLETED', 'FAILED')) AS ended,\n           multiIf(run_id IN (SELECT run_id FROM serving.run_verdicts FINAL WHERE status = 'FAILED'), 'FAILED',\n                   run_id IN (SELECT run_id FROM serving.run_verdicts FINAL WHERE status = 'CANCELED'), 'CANCELED',\n                   countIf(e.event_type = 'run' AND e.status = 'FAILED') > 0, 'FAILED',\n                   countIf(e.event_type = 'run' AND e.status = 'COMPLETED') > 0, 'COMPLETED',\n                   max(e.ts) < now() - INTERVAL 2 HOUR, 'STALLED', 'RUNNING') AS outcome,\n           sumIf(e.rows_out, e.event_type = 'flow_progress' AND e.flow = 'bronze') AS ingested_rows,\n           sumIf(e.rows_dropped, e.event_type = 'flow_progress' AND e.flow = 'silver') AS quarantined,\n           sumIf(e.rows_out, e.event_type = 'flow_progress' AND e.flow = 'history') AS merged\n    FROM serving.run_events AS e\n    WHERE e.dataset IN (${dataset:singlequote})\n    GROUP BY run_id, dataset\n) SELECT sum(ingested_rows) FROM runs WHERE $__timeFilter(started)",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "#8AB8FF"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "#8AB8FF",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "none",
+        "graphMode": "none",
+        "textMode": "value",
+        "justifyMode": "center",
+        "orientation": "auto",
+        "wideLayout": true
+      },
+      "id": 5,
+      "gridPos": {
+        "x": 16,
+        "y": 0,
+        "w": 4,
+        "h": 4
+      }
+    },
+    {
+      "type": "stat",
+      "title": "Quarantined",
+      "description": "Rows a drop expectation sent to quarantine in the range.",
+      "datasource": {
+        "type": "grafana-clickhouse-datasource",
+        "uid": "dataflow-clickhouse"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "dataflow-clickhouse"
+          },
+          "editorType": "sql",
+          "format": 1,
+          "queryType": "table",
+          "rawSql": "WITH runs AS (\n    SELECT run_id, dataset,\n           anyIf(e.partition, e.event_type = 'run') AS run_partition,\n           anyIf(e.trigger, e.event_type = 'run') AS run_trigger,\n           minIf(e.started_at, e.event_type = 'run') AS started,\n           maxIf(e.ended_at, e.event_type = 'run' AND e.status IN ('COMPLETED', 'FAILED')) AS ended,\n           multiIf(run_id IN (SELECT run_id FROM serving.run_verdicts FINAL WHERE status = 'FAILED'), 'FAILED',\n                   run_id IN (SELECT run_id FROM serving.run_verdicts FINAL WHERE status = 'CANCELED'), 'CANCELED',\n                   countIf(e.event_type = 'run' AND e.status = 'FAILED') > 0, 'FAILED',\n                   countIf(e.event_type = 'run' AND e.status = 'COMPLETED') > 0, 'COMPLETED',\n                   max(e.ts) < now() - INTERVAL 2 HOUR, 'STALLED', 'RUNNING') AS outcome,\n           sumIf(e.rows_out, e.event_type = 'flow_progress' AND e.flow = 'bronze') AS ingested_rows,\n           sumIf(e.rows_dropped, e.event_type = 'flow_progress' AND e.flow = 'silver') AS quarantined,\n           sumIf(e.rows_out, e.event_type = 'flow_progress' AND e.flow = 'history') AS merged\n    FROM serving.run_events AS e\n    WHERE e.dataset IN (${dataset:singlequote})\n    GROUP BY run_id, dataset\n) SELECT sum(quarantined) FROM runs WHERE $__timeFilter(started)",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "#FADE2A"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "#FADE2A",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "none",
+        "graphMode": "none",
+        "textMode": "value",
+        "justifyMode": "center",
+        "orientation": "auto",
+        "wideLayout": true
+      },
+      "id": 6,
+      "gridPos": {
+        "x": 20,
+        "y": 0,
+        "w": 4,
+        "h": 4
+      }
+    },
+    {
+      "type": "table",
+      "title": "Runs",
+      "description": "Every run in the range, newest first. Click a run id for its flows.",
+      "datasource": {
+        "type": "grafana-clickhouse-datasource",
+        "uid": "dataflow-clickhouse"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "dataflow-clickhouse"
+          },
+          "editorType": "sql",
+          "format": 1,
+          "queryType": "table",
+          "rawSql": "WITH runs AS (\n    SELECT run_id, dataset,\n           anyIf(e.partition, e.event_type = 'run') AS run_partition,\n           anyIf(e.trigger, e.event_type = 'run') AS run_trigger,\n           minIf(e.started_at, e.event_type = 'run') AS started,\n           maxIf(e.ended_at, e.event_type = 'run' AND e.status IN ('COMPLETED', 'FAILED')) AS ended,\n           multiIf(run_id IN (SELECT run_id FROM serving.run_verdicts FINAL WHERE status = 'FAILED'), 'FAILED',\n                   run_id IN (SELECT run_id FROM serving.run_verdicts FINAL WHERE status = 'CANCELED'), 'CANCELED',\n                   countIf(e.event_type = 'run' AND e.status = 'FAILED') > 0, 'FAILED',\n                   countIf(e.event_type = 'run' AND e.status = 'COMPLETED') > 0, 'COMPLETED',\n                   max(e.ts) < now() - INTERVAL 2 HOUR, 'STALLED', 'RUNNING') AS outcome,\n           sumIf(e.rows_out, e.event_type = 'flow_progress' AND e.flow = 'bronze') AS ingested_rows,\n           sumIf(e.rows_dropped, e.event_type = 'flow_progress' AND e.flow = 'silver') AS quarantined,\n           sumIf(e.rows_out, e.event_type = 'flow_progress' AND e.flow = 'history') AS merged\n    FROM serving.run_events AS e\n    WHERE e.dataset IN (${dataset:singlequote})\n    GROUP BY run_id, dataset\n) SELECT started, dataset, run_partition AS partition, run_trigger AS trigger, outcome AS status, round(dateDiff('millisecond', started, ended) / 1000, 1) AS seconds, ingested_rows, quarantined, merged, run_id FROM runs WHERE $__timeFilter(started) ORDER BY started DESC LIMIT 100",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            }
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "status"
+            },
+            "properties": [
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "type": "value",
+                    "options": {
+                      "COMPLETED": {
+                        "text": "completed",
+                        "color": "#73BF69",
+                        "index": 0
+                      },
+                      "FAILED": {
+                        "text": "failed",
+                        "color": "#F2495C",
+                        "index": 1
+                      },
+                      "SKIPPED": {
+                        "text": "skipped",
+                        "color": "#8E8E8E",
+                        "index": 2
+                      },
+                      "RUNNING": {
+                        "text": "running",
+                        "color": "#8AB8FF",
+                        "index": 3
+                      },
+                      "STALLED": {
+                        "text": "stalled",
+                        "color": "#FADE2A",
+                        "index": 4
+                      },
+                      "CANCELED": {
+                        "text": "canceled",
+                        "color": "#8E8E8E",
+                        "index": 5
+                      }
+                    }
+                  }
+                ]
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-text"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "seconds"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "s"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "run_id"
+            },
+            "properties": [
+              {
+                "id": "links",
+                "value": [
+                  {
+                    "title": "Run detail",
+                    "url": "/d/dataflow-run?var-run=${__value.raw}&${__url_time_range}"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "started"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "dateTimeAsLocal"
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm",
+        "sortBy": [],
+        "footer": {
+          "show": false
+        }
+      },
+      "id": 7,
+      "gridPos": {
+        "x": 0,
+        "y": 4,
+        "w": 24,
+        "h": 11
+      }
+    },
+    {
+      "type": "table",
+      "title": "Last completed run per dataset",
+      "description": "When each dataset last completed a run. Scheduled pipelines should stay under their schedule interval.",
+      "datasource": {
+        "type": "grafana-clickhouse-datasource",
+        "uid": "dataflow-clickhouse"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "dataflow-clickhouse"
+          },
+          "editorType": "sql",
+          "format": 1,
+          "queryType": "table",
+          "rawSql": "SELECT dataset, max(ended_at) AS last_completed, dateDiff('minute', max(ended_at), now()) AS minutes_ago, argMax(trigger, ended_at) AS trigger FROM serving.run_events WHERE event_type = 'run' AND status = 'COMPLETED' AND run_id NOT IN (SELECT run_id FROM serving.run_verdicts FINAL) AND dataset IN (${dataset:singlequote}) GROUP BY dataset ORDER BY dataset",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            }
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "minutes_ago"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "m"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "last_completed"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "dateTimeAsLocal"
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm",
+        "sortBy": [],
+        "footer": {
+          "show": false
+        }
+      },
+      "id": 8,
+      "gridPos": {
+        "x": 0,
+        "y": 15,
+        "w": 8,
+        "h": 7
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "Run time",
+      "description": "Duration of each completed run, container start excluded.",
+      "datasource": {
+        "type": "grafana-clickhouse-datasource",
+        "uid": "dataflow-clickhouse"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "dataflow-clickhouse"
+          },
+          "editorType": "sql",
+          "format": 1,
+          "queryType": "table",
+          "rawSql": "WITH runs AS (\n    SELECT run_id, dataset,\n           anyIf(e.partition, e.event_type = 'run') AS run_partition,\n           anyIf(e.trigger, e.event_type = 'run') AS run_trigger,\n           minIf(e.started_at, e.event_type = 'run') AS started,\n           maxIf(e.ended_at, e.event_type = 'run' AND e.status IN ('COMPLETED', 'FAILED')) AS ended,\n           multiIf(run_id IN (SELECT run_id FROM serving.run_verdicts FINAL WHERE status = 'FAILED'), 'FAILED',\n                   run_id IN (SELECT run_id FROM serving.run_verdicts FINAL WHERE status = 'CANCELED'), 'CANCELED',\n                   countIf(e.event_type = 'run' AND e.status = 'FAILED') > 0, 'FAILED',\n                   countIf(e.event_type = 'run' AND e.status = 'COMPLETED') > 0, 'COMPLETED',\n                   max(e.ts) < now() - INTERVAL 2 HOUR, 'STALLED', 'RUNNING') AS outcome,\n           sumIf(e.rows_out, e.event_type = 'flow_progress' AND e.flow = 'bronze') AS ingested_rows,\n           sumIf(e.rows_dropped, e.event_type = 'flow_progress' AND e.flow = 'silver') AS quarantined,\n           sumIf(e.rows_out, e.event_type = 'flow_progress' AND e.flow = 'history') AS merged\n    FROM serving.run_events AS e\n    WHERE e.dataset IN (${dataset:singlequote})\n    GROUP BY run_id, dataset\n) SELECT started AS time, dataset, dateDiff('millisecond', started, ended) / 1000 AS seconds FROM runs WHERE outcome = 'COMPLETED' AND $__timeFilter(started) ORDER BY time",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 2,
+            "fillOpacity": 10,
+            "pointSize": 6,
+            "showPoints": "always",
+            "spanNulls": false,
+            "stacking": {
+              "mode": "none",
+              "group": "A"
+            }
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "id": 9,
+      "gridPos": {
+        "x": 8,
+        "y": 15,
+        "w": 16,
+        "h": 7
+      }
+    },
+    {
+      "type": "barchart",
+      "title": "Average flow time",
+      "description": "Where a run spends its time, averaged over the range.",
+      "datasource": {
+        "type": "grafana-clickhouse-datasource",
+        "uid": "dataflow-clickhouse"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "dataflow-clickhouse"
+          },
+          "editorType": "sql",
+          "format": 1,
+          "queryType": "table",
+          "rawSql": "SELECT flow, round(avg(dateDiff('millisecond', started_at, ended_at)) / 1000, 2) AS seconds FROM serving.run_events WHERE event_type = 'flow_progress' AND status = 'COMPLETED' AND dataset IN (${dataset:singlequote}) AND $__timeFilter(started_at) GROUP BY flow ORDER BY seconds DESC",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "color": {
+            "mode": "palette-classic"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "orientation": "horizontal",
+        "showValue": "auto",
+        "legend": {
+          "showLegend": false,
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "xTickLabelRotation": 0,
+        "barWidth": 0.8,
+        "groupWidth": 0.7
+      },
+      "id": 10,
+      "gridPos": {
+        "x": 0,
+        "y": 22,
+        "w": 12,
+        "h": 9
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "Rows per run",
+      "description": "Bronze rows ingested and history versions merged per run.",
+      "datasource": {
+        "type": "grafana-clickhouse-datasource",
+        "uid": "dataflow-clickhouse"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "dataflow-clickhouse"
+          },
+          "editorType": "sql",
+          "format": 1,
+          "queryType": "table",
+          "rawSql": "WITH runs AS (\n    SELECT run_id, dataset,\n           anyIf(e.partition, e.event_type = 'run') AS run_partition,\n           anyIf(e.trigger, e.event_type = 'run') AS run_trigger,\n           minIf(e.started_at, e.event_type = 'run') AS started,\n           maxIf(e.ended_at, e.event_type = 'run' AND e.status IN ('COMPLETED', 'FAILED')) AS ended,\n           multiIf(run_id IN (SELECT run_id FROM serving.run_verdicts FINAL WHERE status = 'FAILED'), 'FAILED',\n                   run_id IN (SELECT run_id FROM serving.run_verdicts FINAL WHERE status = 'CANCELED'), 'CANCELED',\n                   countIf(e.event_type = 'run' AND e.status = 'FAILED') > 0, 'FAILED',\n                   countIf(e.event_type = 'run' AND e.status = 'COMPLETED') > 0, 'COMPLETED',\n                   max(e.ts) < now() - INTERVAL 2 HOUR, 'STALLED', 'RUNNING') AS outcome,\n           sumIf(e.rows_out, e.event_type = 'flow_progress' AND e.flow = 'bronze') AS ingested_rows,\n           sumIf(e.rows_dropped, e.event_type = 'flow_progress' AND e.flow = 'silver') AS quarantined,\n           sumIf(e.rows_out, e.event_type = 'flow_progress' AND e.flow = 'history') AS merged\n    FROM serving.run_events AS e\n    WHERE e.dataset IN (${dataset:singlequote})\n    GROUP BY run_id, dataset\n) SELECT started AS time, dataset, ingested_rows AS ingested, merged FROM runs WHERE outcome = 'COMPLETED' AND $__timeFilter(started) ORDER BY time",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": {
+            "drawStyle": "bars",
+            "lineWidth": 2,
+            "fillOpacity": 20,
+            "pointSize": 6,
+            "showPoints": "always",
+            "spanNulls": false,
+            "stacking": {
+              "mode": "none",
+              "group": "A"
+            }
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "id": 11,
+      "gridPos": {
+        "x": 12,
+        "y": 22,
+        "w": 12,
+        "h": 9
+      }
+    }
+  ]
+}

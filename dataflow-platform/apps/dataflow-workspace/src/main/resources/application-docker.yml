@@ -1,0 +1,77 @@
+env:
+  lake:
+    root: ${LAKE_ROOT:s3a://${LAKE_BUCKET:lake}}
+  control-plane:
+    url: jdbc:postgresql://${POSTGRES_HOST}:${POSTGRES_PORT}/${WORKSPACE_DB}
+    user: ${POSTGRES_USER}
+    password: ${POSTGRES_PASSWORD}
+  releases:
+    bucket: ${RELEASES_BUCKET}
+    endpoint: ${LAKE_ENDPOINT}
+    access-key: ${LAKE_ACCESS_KEY}
+    secret-key: ${LAKE_SECRET_KEY}
+    target: ${RELEASES_TARGET}
+    cache-dir: ${WORKSPACE_RELEASES_CACHE}
+    region: ${LAKE_S3_REGION:us-east-1}
+    path-style: ${LAKE_S3_PATH_STYLE:true}
+  workspace:
+    sources:
+      allowed-hosts: ${WORKSPACE_SOURCES_ALLOWED_HOSTS:}
+      allowed-paths: ${WORKSPACE_SOURCES_ALLOWED_PATHS:}
+    storage-access:
+      enabled: ${WORKSPACE_STORAGE_ACCESS_ENABLED:false}
+      endpoint: ${LAKE_ENDPOINT}
+      bucket: ${LAKE_BUCKET}
+      browser-url: ${WORKSPACE_STORAGE_BROWSER_URL:}
+      legacy-policies: ${WORKSPACE_STORAGE_LEGACY_POLICIES:}
+    housekeeping:
+      preview-days: ${HOUSEKEEPING_PREVIEW_DAYS:7}
+      event-log-days: ${HOUSEKEEPING_EVENT_LOG_DAYS:14}
+      upload-days: ${HOUSEKEEPING_UPLOAD_DAYS:30}
+      keep-releases: ${HOUSEKEEPING_KEEP_RELEASES:5}
+      schedule: "${HOUSEKEEPING_SCHEDULE:-}"
+    compute-policy:
+      max-driver-memory: ${COMPUTE_MAX_DRIVER_MEMORY:}
+      max-driver-cores: ${COMPUTE_MAX_DRIVER_CORES:}
+      max-executor-memory: ${COMPUTE_MAX_EXECUTOR_MEMORY:}
+      max-executor-cores: ${COMPUTE_MAX_EXECUTOR_CORES:}
+      max-executors: ${COMPUTE_MAX_EXECUTORS:}
+    port: ${WORKSPACE_HTTP_PORT}
+    auth:
+      mode: ${WORKSPACE_AUTH}
+      issuer: ${WORKSPACE_OIDC_ISSUER}
+      internal: ${WORKSPACE_OIDC_INTERNAL}
+      client-id: ${WORKSPACE_OIDC_CLIENT_ID:workspace}
+      client-secret: ${WORKSPACE_OIDC_CLIENT_SECRET:}
+      groups-claim: ${WORKSPACE_OIDC_GROUPS_CLAIM:groups}
+      username-claim: ${WORKSPACE_OIDC_USERNAME_CLAIM:preferred_username}
+      admins: ${WORKSPACE_OIDC_ADMINS:admins}
+    ui-location: file:${WORKSPACE_UI_LOCATION}/
+    person:
+      id: ${WORKSPACE_PERSON_ID}
+      name: ${WORKSPACE_GIT_NAME}
+      email: ${WORKSPACE_GIT_EMAIL}
+    git:
+      cache-dir: ${WORKSPACE_GIT_CACHE}
+      file-remotes: ${WORKSPACE_FILE_REMOTES}
+    github:
+      client-id: ${GITHUB_CLIENT_ID}
+      client-secret: ${GITHUB_CLIENT_SECRET}
+      app-slug: ${GITHUB_APP_SLUG}
+      public-url: ${WORKSPACE_PUBLIC_URL}
+  serving:
+    url: ${CLICKHOUSE_URL}
+    user: ${CLICKHOUSE_USER}
+    password: ${CLICKHOUSE_PASSWORD}
+  tower:
+    url: ${TOWER_GRAPHQL_URL}
+  links:
+    tower: ${LINK_TOWER}
+    object-store: ${LINK_OBJECT_STORE}
+    serving: ${LINK_SERVING}
+    dashboards: ${LINK_DASHBOARDS}
+    mail: ${LINK_MAIL}
+    spark-history: ${LINK_SPARK_HISTORY:}
+  alerts:
+    grafana: ${GRAFANA_INTERNAL_URL}
+    token-file: ${GRAFANA_TOKEN_FILE}

@@ -1,0 +1,49 @@
+dataflow:
+  spark:
+    app-name: dataflow-engine
+    config:
+      spark.serializer: org.apache.spark.serializer.KryoSerializer
+      spark.sql.adaptive.enabled: "true"
+      spark.sql.session.timeZone: UTC
+      spark.sql.shuffle.partitions: ${env.spark.sql.shuffle-partitions}
+      spark.hadoop.parquet.block.size: "33554432"
+      spark.scheduler.mode: FAIR
+      spark.ui.enabled: "false"
+      spark.ui.showConsoleProgress: "false"
+      spark.sql.extensions: io.delta.sql.DeltaSparkSessionExtension
+      spark.sql.catalog.spark_catalog: org.apache.spark.sql.delta.catalog.DeltaCatalog
+      spark.databricks.delta.snapshotPartitions: ${env.spark.delta-snapshot-partitions}
+      spark.databricks.delta.properties.defaults.enableDeletionVectors: "false"
+      spark.eventLog.enabled: ${env.spark.event-log.enabled}
+      spark.eventLog.dir: ${env.spark.event-log.dir}
+      spark.eventLog.rolling.enabled: "true"
+      spark.eventLog.rolling.maxFileSize: 10m
+    checkpoint-managers:
+      s3a: org.apache.spark.internal.io.cloud.AbortableStreamBasedCheckpointFileManager
+    stores:
+      s3a:
+        spark.hadoop.fs.s3a.impl: org.apache.hadoop.fs.s3a.S3AFileSystem
+        spark.hadoop.fs.s3a.endpoint: ${env.lake.endpoint}
+        spark.hadoop.fs.s3a.endpoint.region: ${env.lake.s3.region}
+        spark.hadoop.fs.s3a.path.style.access: ${env.lake.s3.path-style}
+        spark.hadoop.fs.s3a.connection.ssl.enabled: ${env.lake.s3.ssl}
+        spark.hadoop.fs.s3a.access.key: ${env.lake.access-key}
+        spark.hadoop.fs.s3a.secret.key: ${env.lake.secret-key}
+        spark.hadoop.fs.s3a.aws.credentials.provider: ${env.lake.s3.credentials-provider}
+        spark.hadoop.fs.s3a.connection.establish.timeout: "15000"
+        spark.hadoop.fs.s3a.connection.timeout: "30000"
+        spark.hadoop.fs.s3a.attempts.maximum: "5"
+        spark.hadoop.fs.s3a.retry.limit: "5"
+        spark.hadoop.fs.s3a.retry.interval: 500ms
+      abfss:
+        spark.hadoop.fs.AbstractFileSystem.abfss.impl: org.apache.hadoop.fs.azurebfs.Abfss
+        spark.hadoop.fs.azure.account.auth.type: OAuth
+        spark.hadoop.fs.azure.account.oauth.provider.type: ${env.lake.azure.token-provider}
+        spark.hadoop.fs.azure.account.oauth2.msi.tenant: ${env.lake.azure.tenant}
+        spark.hadoop.fs.azure.account.oauth2.client.id: ${env.lake.azure.client-id}
+        spark.hadoop.fs.azure.account.oauth2.token.file: ${env.lake.azure.token-file}
+      gs:
+        spark.hadoop.fs.gs.impl: com.google.cloud.hadoop.fs.gcs.GoogleHadoopFileSystem
+        spark.hadoop.fs.AbstractFileSystem.gs.impl: com.google.cloud.hadoop.fs.gcs.GoogleHadoopFS
+        spark.hadoop.fs.gs.auth.type: ${env.lake.gcs.auth-type}
+        spark.hadoop.fs.gs.auth.service.account.json.keyfile: ${env.lake.gcs.keyfile}

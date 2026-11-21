@@ -1,0 +1,23 @@
+{
+  "realm": "dataflow",
+  "enabled": true,
+  "displayName": "DataFlow",
+  "registrationAllowed": false,
+  "resetPasswordAllowed": false,
+  "loginWithEmailAllowed": true,
+  "duplicateEmailsAllowed": false,
+  "sslRequired": "external",
+  "accessTokenLifespan": 900,
+  "passwordPolicy": "length(12)",
+  "groups": [
+    {
+      "name": "admins"
+    },
+    {
+      "name": "engineers"
+    },
+    {
+      "name": "analysts"
+    }
+  ]
+}

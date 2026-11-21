@@ -1,0 +1,11 @@
+dataset: nested
+version: 3
+source: { path: /data/x.csv, format: csv }
+silver:
+  columns:
+    - { name: id, type: string, from: id }
+    - { name: amount, type: double, form: amount }
+  expectations:
+    - { name: positive, check: "amount > 0", on-failure: drop }
+history:
+  keys: [id]

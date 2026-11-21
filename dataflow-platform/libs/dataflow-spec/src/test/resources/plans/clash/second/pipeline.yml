@@ -1,0 +1,10 @@
+dataset: second
+version: 3
+source: { path: /data/second.csv, format: csv }
+silver:
+  columns:
+    - { name: id, type: string, from: id }
+history:
+  keys: [id]
+serve:
+  - { from: current, table: shared }

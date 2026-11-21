@@ -1,0 +1,68 @@
+dataset: earthquakes
+version: 3
+owner: platform
+description: USGS events of the last 30 days; magnitudes get revised, so history matters
+
+source:
+  url: https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/all_month.csv
+  format: csv
+  options: { header: "true" }
+
+schedule: "0 */6 * * *"
+
+bronze:
+  schema-evolution: rescue
+
+silver:
+  columns:
+    - { name: eventId,       type: string,    required: true, from: id }
+    - { name: occurredAt,    type: timestamp, required: true, from: "to_timestamp(time)" }
+    - { name: updatedAt,     type: timestamp,                 from: "to_timestamp(updated)" }
+    - { name: latitude,      type: double,                    from: latitude }
+    - { name: longitude,     type: double,                    from: longitude }
+    - { name: depthKm,       type: double,                    from: depth }
+    - { name: magnitude,     type: double,                    from: mag }
+    - { name: magnitudeType, type: string,                    from: magType }
+    - { name: place,         type: string,                    from: place }
+    - { name: eventType,     type: string,                    from: type }
+    - { name: status,        type: string,                    from: status }
+    - { name: network,       type: string,                    from: net }
+  derive:
+    - { name: region,        type: string, from: "trim(element_at(split(place, ', '), -1))" }
+    - { name: magnitudeBand, type: string, from: "CASE WHEN magnitude < 2 THEN '1 micro (<2)' WHEN magnitude < 4 THEN '2 minor (2-4)' WHEN magnitude < 5 THEN '3 light (4-5)' WHEN magnitude < 6 THEN '4 moderate (5-6)' ELSE '5 strong (6+)' END" }
+  expectations:
+    - { name: has_magnitude,       check: "magnitude IS NOT NULL",       on-failure: drop }
+    - { name: plausible_magnitude, check: "magnitude BETWEEN -2 AND 10", on-failure: drop }
+    - { name: plausible_depth,     check: "depthKm BETWEEN -10 AND 800", on-failure: warn }
+    - { name: reviewed,            check: "status = 'reviewed'",         on-failure: warn }
+
+history:
+  keys: [ eventId ]
+  sequence-by: updatedAt
+  stored-as: scd2
+  track-history-except: [ updatedAt ]
+
+gold:
+  - name: daily_activity
+    sql: |
+      SELECT to_date(occurredAt)          AS day,
+             magnitudeBand,
+             eventType,
+             count(*)                     AS events,
+             round(max(magnitude), 1)     AS maxMagnitude,
+             round(avg(depthKm), 1)       AS avgDepthKm
+      FROM current
+      GROUP BY 1, 2, 3
+  - name: regions
+    sql: |
+      SELECT coalesce(region, 'Unknown')  AS region,
+             count(*)                     AS events,
+             round(max(magnitude), 1)     AS maxMagnitude,
+             round(avg(magnitude), 2)     AS avgMagnitude
+      FROM current
+      GROUP BY 1
+
+serve:
+  - { from: current,             table: earthquakes,                mode: view }
+  - { from: gold.daily_activity, table: earthquakes_daily_activity, mode: copy, order-by: "(day, magnitudeBand, eventType)" }
+  - { from: gold.regions,        table: earthquakes_regions,        mode: copy, order-by: region }

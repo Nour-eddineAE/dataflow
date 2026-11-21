@@ -1,0 +1,16 @@
+type: dataflow_tower.PipelineSpecs
+
+attributes:
+  releases: "{{ env.RELEASES_ROOT }}"
+  target: "{{ env.RELEASES_TARGET }}"
+  docker:
+    image: "{{ env.ENGINE_IMAGE }}"
+    memory: "{{ env.ENGINE_MEMORY }}"
+    task_memory: "{{ env.TASK_MEMORY }}"
+    data_dir: "{{ env.HOST_DATA }}"
+  compute_policy:
+    max_driver_memory: "{{ env.COMPUTE_MAX_DRIVER_MEMORY }}"
+    max_driver_cores: "{{ env.COMPUTE_MAX_DRIVER_CORES }}"
+    max_executor_memory: "{{ env.COMPUTE_MAX_EXECUTOR_MEMORY }}"
+    max_executor_cores: "{{ env.COMPUTE_MAX_EXECUTOR_CORES }}"
+    max_executors: "{{ env.COMPUTE_MAX_EXECUTORS }}"

@@ -1,0 +1,32 @@
+dataset: broken
+version: 2
+
+source:
+  url: https://example.org/data.csv
+  path: /data/data.csv
+  format: csv
+  partitions: { monthly: { start: 2024 } }
+
+schedule: "every hour"
+
+silver:
+  columns:
+    - { name: id,          type: strng,  required: true, from: id }
+    - { name: _secret,     type: string,                 from: secret }
+    - { name: amount,      type: double,                 from: "amount +* 2" }
+    - { name: amount,      type: double,                 from: amount }
+    - { name: label,       type: string,                 from: label }
+  expectations:
+    - { name: positive, check: "amount > 0" }
+    - { name: positive, check: "amount <" }
+
+history:
+  keys: [missing]
+  sequence-by: label
+
+gold:
+  - { name: totals, sql: "SELEC sum(amount) FROM current" }
+
+serve:
+  - { from: gold.nothing, table: nothing }
+  - { from: current, table: copy, mode: copy }

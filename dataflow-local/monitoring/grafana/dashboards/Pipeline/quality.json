@@ -1,0 +1,551 @@
+{
+  "uid": "dataflow-quality",
+  "title": "Pipeline · Data quality",
+  "description": "Expectations from every run: what was checked, what broke, what went to quarantine.",
+  "tags": [
+    "dataflow",
+    "pipeline"
+  ],
+  "editable": true,
+  "graphTooltip": 1,
+  "schemaVersion": 39,
+  "version": 1,
+  "timezone": "browser",
+  "refresh": "1m",
+  "liveNow": false,
+  "time": {
+    "from": "now-30d",
+    "to": "now"
+  },
+  "timepicker": {
+    "refresh_intervals": [
+      "30s",
+      "1m",
+      "5m",
+      "15m",
+      "1h"
+    ]
+  },
+  "fiscalYearStartMonth": 0,
+  "weekStart": "",
+  "templating": {
+    "list": [
+      {
+        "name": "dataset",
+        "label": "Dataset",
+        "type": "query",
+        "datasource": {
+          "type": "grafana-clickhouse-datasource",
+          "uid": "dataflow-clickhouse"
+        },
+        "query": "SELECT DISTINCT dataset FROM serving.run_events ORDER BY dataset",
+        "definition": "SELECT DISTINCT dataset FROM serving.run_events ORDER BY dataset",
+        "refresh": 2,
+        "multi": true,
+        "includeAll": true,
+        "current": {
+          "selected": true,
+          "text": [
+            "All"
+          ],
+          "value": [
+            "$__all"
+          ]
+        },
+        "sort": 1
+      }
+    ]
+  },
+  "annotations": {
+    "list": [
+      {
+        "builtIn": 1,
+        "datasource": {
+          "type": "grafana",
+          "uid": "-- Grafana --"
+        },
+        "enable": true,
+        "hide": true,
+        "iconColor": "rgba(0, 211, 255, 1)",
+        "name": "Annotations & Alerts",
+        "type": "dashboard"
+      },
+      {
+        "name": "Runs",
+        "enable": true,
+        "iconColor": "rgba(184, 119, 217, 0.55)",
+        "datasource": {
+          "type": "grafana-clickhouse-datasource",
+          "uid": "dataflow-clickhouse"
+        },
+        "target": {
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "dataflow-clickhouse"
+          },
+          "editorType": "sql",
+          "format": 1,
+          "queryType": "table",
+          "refId": "Anno",
+          "rawSql": "SELECT started_at AS time, ended_at AS timeEnd, concat(dataset, ' · ', lower(status), ' · ', trigger) AS text FROM serving.run_events WHERE event_type = 'run' AND status IN ('COMPLETED', 'FAILED') AND $__timeFilter(started_at)"
+        }
+      }
+    ]
+  },
+  "links": [
+    {
+      "title": "Pipeline",
+      "type": "dashboards",
+      "tags": [
+        "pipeline"
+      ],
+      "asDropdown": true,
+      "includeVars": true,
+      "keepTime": true
+    }
+  ],
+  "panels": [
+    {
+      "type": "stat",
+      "title": "Quarantine rate",
+      "description": "Share of evaluated rows that a drop expectation quarantined.",
+      "datasource": {
+        "type": "grafana-clickhouse-datasource",
+        "uid": "dataflow-clickhouse"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "dataflow-clickhouse"
+          },
+          "editorType": "sql",
+          "format": 1,
+          "queryType": "table",
+          "rawSql": "SELECT sum(rows_dropped) / greatest(sum(rows_in), 1) FROM serving.run_events WHERE event_type = 'flow_progress' AND flow = 'silver' AND dataset IN (${dataset:singlequote}) AND $__timeFilter(ts)",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "color": {
+            "mode": "thresholds",
+            "fixedColor": "#8AB8FF"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "#73BF69",
+                "value": null
+              },
+              {
+                "color": "#FADE2A",
+                "value": 0.01
+              },
+              {
+                "color": "#F2495C",
+                "value": 0.05
+              }
+            ]
+          },
+          "decimals": 2
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "value",
+        "justifyMode": "center",
+        "orientation": "auto",
+        "wideLayout": true
+      },
+      "id": 21,
+      "gridPos": {
+        "x": 0,
+        "y": 0,
+        "w": 6,
+        "h": 4
+      }
+    },
+    {
+      "type": "stat",
+      "title": "Rows checked",
+      "description": "",
+      "datasource": {
+        "type": "grafana-clickhouse-datasource",
+        "uid": "dataflow-clickhouse"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "dataflow-clickhouse"
+          },
+          "editorType": "sql",
+          "format": 1,
+          "queryType": "table",
+          "rawSql": "SELECT sum(rows_in) FROM serving.run_events WHERE event_type = 'flow_progress' AND flow = 'silver' AND dataset IN (${dataset:singlequote}) AND $__timeFilter(ts)",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "#8AB8FF"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "#8AB8FF",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "none",
+        "graphMode": "none",
+        "textMode": "value",
+        "justifyMode": "center",
+        "orientation": "auto",
+        "wideLayout": true
+      },
+      "id": 22,
+      "gridPos": {
+        "x": 6,
+        "y": 0,
+        "w": 6,
+        "h": 4
+      }
+    },
+    {
+      "type": "stat",
+      "title": "Expectations failing now",
+      "description": "Expectations whose latest evaluation found failing rows.",
+      "datasource": {
+        "type": "grafana-clickhouse-datasource",
+        "uid": "dataflow-clickhouse"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "dataflow-clickhouse"
+          },
+          "editorType": "sql",
+          "format": 1,
+          "queryType": "table",
+          "rawSql": "SELECT countIf(NOT passed) FROM (SELECT dataset, JSONExtractString(details, 'expectation') AS name, argMax(JSONExtractBool(details, 'passed'), ts) AS passed FROM serving.run_events WHERE event_type = 'expectation' AND dataset IN (${dataset:singlequote}) GROUP BY dataset, name)",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "#FADE2A"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "#FADE2A",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "none",
+        "graphMode": "none",
+        "textMode": "value",
+        "justifyMode": "center",
+        "orientation": "auto",
+        "wideLayout": true
+      },
+      "id": 23,
+      "gridPos": {
+        "x": 12,
+        "y": 0,
+        "w": 6,
+        "h": 4
+      }
+    },
+    {
+      "type": "stat",
+      "title": "Hard stops",
+      "description": "on-failure: fail expectations that broke, each one failing its run.",
+      "datasource": {
+        "type": "grafana-clickhouse-datasource",
+        "uid": "dataflow-clickhouse"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "dataflow-clickhouse"
+          },
+          "editorType": "sql",
+          "format": 1,
+          "queryType": "table",
+          "rawSql": "SELECT count() FROM serving.run_events WHERE event_type = 'expectation' AND JSONExtractString(details, 'action') = 'fail' AND NOT JSONExtractBool(details, 'passed') AND dataset IN (${dataset:singlequote}) AND $__timeFilter(ts)",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "color": {
+            "mode": "thresholds",
+            "fixedColor": "#8AB8FF"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "#73BF69",
+                "value": null
+              },
+              {
+                "color": "#F2495C",
+                "value": 1
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "value",
+        "justifyMode": "center",
+        "orientation": "auto",
+        "wideLayout": true
+      },
+      "id": 24,
+      "gridPos": {
+        "x": 18,
+        "y": 0,
+        "w": 6,
+        "h": 4
+      }
+    },
+    {
+      "type": "table",
+      "title": "Latest check per expectation",
+      "description": "The newest result of every expectation of every pipeline (warn: kept, drop: quarantined, fail: run stopped).",
+      "datasource": {
+        "type": "grafana-clickhouse-datasource",
+        "uid": "dataflow-clickhouse"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "dataflow-clickhouse"
+          },
+          "editorType": "sql",
+          "format": 1,
+          "queryType": "table",
+          "rawSql": "SELECT dataset, JSONExtractString(details, 'expectation') AS expectation, argMax(JSONExtractString(details, 'action'), ts) AS action, argMax(rows_dropped, ts) AS failing_rows, argMax(rows_in, ts) AS evaluated, argMax(JSONExtractBool(details, 'passed'), ts) AS passed, max(ts) AS checked_at FROM serving.run_events WHERE event_type = 'expectation' AND dataset IN (${dataset:singlequote}) GROUP BY dataset, expectation ORDER BY dataset, expectation",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            }
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "checked_at"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "dateTimeAsLocal"
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm",
+        "sortBy": [],
+        "footer": {
+          "show": false
+        }
+      },
+      "id": 25,
+      "gridPos": {
+        "x": 0,
+        "y": 4,
+        "w": 24,
+        "h": 9
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "Failing rows per expectation",
+      "description": "Rows breaking each expectation, per run that evaluated rows.",
+      "datasource": {
+        "type": "grafana-clickhouse-datasource",
+        "uid": "dataflow-clickhouse"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "dataflow-clickhouse"
+          },
+          "editorType": "sql",
+          "format": 1,
+          "queryType": "table",
+          "rawSql": "SELECT ts AS time, concat(dataset, ' · ', JSONExtractString(details, 'expectation')) AS expectation, rows_dropped AS failing FROM serving.run_events WHERE event_type = 'expectation' AND rows_in > 0 AND dataset IN (${dataset:singlequote}) AND $__timeFilter(ts) ORDER BY time",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": {
+            "drawStyle": "bars",
+            "lineWidth": 2,
+            "fillOpacity": 20,
+            "pointSize": 6,
+            "showPoints": "always",
+            "spanNulls": false,
+            "stacking": {
+              "mode": "none",
+              "group": "A"
+            }
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "id": 26,
+      "gridPos": {
+        "x": 0,
+        "y": 13,
+        "w": 12,
+        "h": 9
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "Quarantine rate per run",
+      "description": "Above 5% over a day raises the Quarantine rate high alert.",
+      "datasource": {
+        "type": "grafana-clickhouse-datasource",
+        "uid": "dataflow-clickhouse"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "dataflow-clickhouse"
+          },
+          "editorType": "sql",
+          "format": 1,
+          "queryType": "table",
+          "rawSql": "SELECT ts AS time, dataset, rows_dropped / greatest(rows_in, 1) AS rate FROM serving.run_events WHERE event_type = 'flow_progress' AND flow = 'silver' AND rows_in > 0 AND dataset IN (${dataset:singlequote}) AND $__timeFilter(ts) ORDER BY time",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 2,
+            "fillOpacity": 10,
+            "pointSize": 6,
+            "showPoints": "always",
+            "spanNulls": false,
+            "stacking": {
+              "mode": "none",
+              "group": "A"
+            }
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "id": 27,
+      "gridPos": {
+        "x": 12,
+        "y": 13,
+        "w": 12,
+        "h": 9
+      }
+    }
+  ]
+}

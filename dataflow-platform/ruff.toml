@@ -1,0 +1,11 @@
+target-version = "py312"
+
+[lint]
+select = ["B", "C90", "ERA", "F", "PLR0913", "PLR2004", "S104", "S108"]
+
+[lint.mccabe]
+max-complexity = 10
+
+[lint.pylint]
+allow-magic-value-types = ["str", "bytes"]
+max-args = 6

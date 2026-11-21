@@ -1,0 +1,19 @@
+query Run($runId: ID!) {
+  runOrError(runId: $runId) {
+    __typename
+    ... on Run {
+      ...RunFields
+      eventConnection(afterCursor: null) {
+        events {
+          __typename
+          ... on MessageEvent { message timestamp level }
+          ... on ExecutionStepFailureEvent { error { message } }
+          ... on RunFailureEvent { error { message } }
+          ... on LogsCapturedEvent { fileKey }
+        }
+      }
+    }
+    ... on RunNotFoundError { message }
+    ... on PythonError { message }
+  }
+}

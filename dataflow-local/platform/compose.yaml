@@ -1,0 +1,190 @@
+x-engine-environment: &engine-environment
+  JASYPT_ENCRYPTOR_PASSWORD: ${JASYPT_ENCRYPTOR_PASSWORD}
+  LAKE_BUCKET: ${LAKE_BUCKET}
+  LAKE_ENDPOINT: http://rustfs:9000
+  LAKE_ACCESS_KEY: ${RUSTFS_ACCESS_KEY}
+  LAKE_SECRET_KEY: ${RUSTFS_SECRET_KEY_ENC}
+  RELEASES_BUCKET: ${RELEASES_BUCKET}
+  ENGINE_MAINTENANCE_INTERVAL: ${ENGINE_MAINTENANCE_INTERVAL}
+  ENGINE_MAINTENANCE_RETENTION_HOURS: ${ENGINE_MAINTENANCE_RETENTION_HOURS}
+  ENGINE_SOURCE_TIMEOUT: ${ENGINE_SOURCE_TIMEOUT}
+  ENGINE_SOURCE_CONNECT_TIMEOUT: ${ENGINE_SOURCE_CONNECT_TIMEOUT}
+  ENGINE_SERVING_TIMEOUT: ${ENGINE_SERVING_TIMEOUT}
+  ENGINE_SERVING_CONNECT_TIMEOUT: ${ENGINE_SERVING_CONNECT_TIMEOUT}
+  SERVING_ENABLED: "true"
+  CLICKHOUSE_URL: http://clickhouse:8123
+  CLICKHOUSE_USER: ${CLICKHOUSE_USER}
+  CLICKHOUSE_PASSWORD: ${CLICKHOUSE_PASSWORD_ENC}
+  SPARK_MASTER: local[*]
+  SPARK_SQL_SHUFFLE_PARTITIONS: ${SPARK_SQL_SHUFFLE_PARTITIONS}
+  SPARK_DELTA_SNAPSHOT_PARTITIONS: ${SPARK_DELTA_SNAPSHOT_PARTITIONS}
+  SPARK_EVENT_LOG_ENABLED: ${SPARK_EVENT_LOG_ENABLED}
+  SPARK_EVENT_LOG_DIR: s3a://${LAKE_BUCKET}/spark-events/
+
+x-compute-policy: &compute-policy
+  COMPUTE_MAX_DRIVER_MEMORY: ${COMPUTE_MAX_DRIVER_MEMORY}
+  COMPUTE_MAX_DRIVER_CORES: ${COMPUTE_MAX_DRIVER_CORES}
+  COMPUTE_MAX_EXECUTOR_MEMORY: ${COMPUTE_MAX_EXECUTOR_MEMORY}
+  COMPUTE_MAX_EXECUTOR_CORES: ${COMPUTE_MAX_EXECUTOR_CORES}
+  COMPUTE_MAX_EXECUTORS: ${COMPUTE_MAX_EXECUTORS}
+
+x-tower: &tower
+  image: dataflow-tower:latest
+  environment:
+    <<: [*engine-environment, *compute-policy]
+    DAGSTER_PG_HOST: postgres
+    DAGSTER_PG_USER: ${POSTGRES_USER}
+    DAGSTER_PG_PASSWORD: ${POSTGRES_PASSWORD}
+    DAGSTER_PG_DB: dagster
+    RELEASES_ROOT: s3a://${RELEASES_BUCKET}
+    RELEASES_TARGET: ${RELEASES_TARGET}
+    ENGINE_IMAGE: dataflow-engine:latest
+    ENGINE_MEMORY: ${ENGINE_MEMORY}
+    TASK_MEMORY: ${TASK_MEMORY}
+    HOST_DATA: ${DATA_DIR}
+    TOWER_URL: http://localhost:${TOWER_PORT}
+    ALERT_EMAIL: ${ALERT_EMAIL}
+    SMTP_HOST: mailpit
+    SMTP_PORT: 1025
+    SMTP_TIMEOUT: ${SMTP_TIMEOUT}
+
+services:
+  tower-code:
+    <<: *tower
+    build: ${PLATFORM_DIR}/tower
+    container_name: dataflow-tower-code
+    command: [ "dagster", "code-server", "start", "-h", "0.0.0.0", "-p", "4000", "-m", "dataflow_tower.definitions", "--location-name", "dataflow", "--heartbeat-ttl", "${TOWER_CODE_HEARTBEAT_TTL_SECONDS}" ]
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - >-
+          import grpc;
+          grpc.insecure_channel('localhost:4000').unary_unary('/api.DagsterApi/ListRepositories')(b'', timeout=10)
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    depends_on:
+      databases:
+        condition: service_completed_successfully
+      buckets:
+        condition: service_completed_successfully
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - tower-storage:/opt/dagster/home/storage
+    mem_limit: ${TOWER_CODE_MEMORY}
+
+  tower-webserver:
+    <<: *tower
+    container_name: dataflow-tower-webserver
+    command: [ "dagster-webserver", "-h", "0.0.0.0", "-p", "3000", "-w", "/opt/dagster/home/workspace.yaml" ]
+    depends_on:
+      tower-code:
+        condition: service_healthy
+    volumes:
+      - tower-storage:/opt/dagster/home/storage
+    mem_limit: ${TOWER_WEBSERVER_MEMORY}
+
+  tower-daemon:
+    <<: *tower
+    container_name: dataflow-tower-daemon
+    command: [ "dagster-daemon", "run", "-w", "/opt/dagster/home/workspace.yaml" ]
+    depends_on:
+      tower-code:
+        condition: service_healthy
+    mem_limit: ${TOWER_DAEMON_MEMORY}
+
+  workspace:
+    build:
+      context: ${PLATFORM_DIR}
+      target: workspace
+    image: dataflow-workspace:latest
+    container_name: dataflow-workspace
+    depends_on:
+      clickhouse:
+        condition: service_healthy
+      databases:
+        condition: service_completed_successfully
+      buckets:
+        condition: service_completed_successfully
+      keycloak:
+        condition: service_healthy
+      tower-webserver:
+        condition: service_started
+    environment:
+      <<: *compute-policy
+      SPRING_PROFILES_ACTIVE: docker
+      JASYPT_ENCRYPTOR_PASSWORD: ${JASYPT_ENCRYPTOR_PASSWORD}
+      WORKSPACE_HTTP_PORT: 8080
+      WORKSPACE_UI_LOCATION: /app/ui
+      WORKSPACE_PUBLIC_URL: ${WORKSPACE_URL}
+      WORKSPACE_PERSON_ID: ${PERSON_ID}
+      WORKSPACE_GIT_NAME: ${PERSON_NAME}
+      WORKSPACE_GIT_EMAIL: ${PERSON_EMAIL}
+      WORKSPACE_GIT_CACHE: /var/cache/dataflow/git
+      WORKSPACE_RELEASES_CACHE: /var/cache/dataflow/releases
+      WORKSPACE_FILE_REMOTES: /remotes
+      WORKSPACE_AUTH: oidc
+      WORKSPACE_STORAGE_ACCESS_ENABLED: ${STORAGE_ACCESS_ENABLED}
+      WORKSPACE_STORAGE_BROWSER_URL: http://localhost:${RUSTFS_CONSOLE_PORT}
+      WORKSPACE_STORAGE_LEGACY_POLICIES: ${STORAGE_LEGACY_POLICIES}
+      WORKSPACE_OIDC_ISSUER: ${ISSUER}
+      WORKSPACE_OIDC_INTERNAL: http://keycloak:8080/realms/dataflow
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: 5432
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      WORKSPACE_DB: workspace
+      LAKE_BUCKET: ${LAKE_BUCKET}
+      LAKE_ENDPOINT: http://rustfs:9000
+      LAKE_ACCESS_KEY: ${RUSTFS_ACCESS_KEY}
+      LAKE_SECRET_KEY: ${RUSTFS_SECRET_KEY_ENC}
+      RELEASES_BUCKET: ${RELEASES_BUCKET}
+      RELEASES_TARGET: ${RELEASES_TARGET}
+      CLICKHOUSE_URL: http://clickhouse:8123
+      CLICKHOUSE_USER: ${CLICKHOUSE_USER}
+      CLICKHOUSE_PASSWORD: ${CLICKHOUSE_PASSWORD_ENC}
+      TOWER_GRAPHQL_URL: http://tower-webserver:3000/graphql
+      GRAFANA_INTERNAL_URL: http://grafana:3000
+      GRAFANA_TOKEN_FILE: /var/run/dataflow/grafana/grafana.token
+      GITHUB_CLIENT_ID: ${GITHUB_CLIENT_ID:-}
+      GITHUB_CLIENT_SECRET: ${GITHUB_CLIENT_SECRET_ENC:-}
+      GITHUB_APP_SLUG: ${GITHUB_APP_SLUG:-}
+      LINK_TOWER: http://localhost:${TOWER_PORT}
+      LINK_OBJECT_STORE: http://localhost:${RUSTFS_PORT}/rustfs/admin/v3/oidc/authorize/default
+      LINK_SERVING: http://localhost:${CLICKHOUSE_HTTP_PORT}/play
+      LINK_DASHBOARDS: http://localhost:${GRAFANA_PORT}
+      LINK_MAIL: http://localhost:${MAILPIT_PORT}
+      LINK_SPARK_HISTORY: ${SPARK_HISTORY_LINK}
+    ports:
+      - "${WORKSPACE_PORT}:8080"
+    volumes:
+      - workspace-cache:/var/cache/dataflow
+      - grafana-token:/var/run/dataflow/grafana:ro
+      - ${REMOTES_DIR}:/remotes
+    mem_limit: ${WORKSPACE_MEMORY}
+
+  engine:
+    profiles: [ "engine" ]
+    build:
+      context: ${PLATFORM_DIR}
+      target: engine
+    image: dataflow-engine:latest
+    restart: "no"
+    depends_on:
+      buckets:
+        condition: service_completed_successfully
+    environment:
+      <<: *engine-environment
+      SPRING_PROFILES_ACTIVE: docker,spark
+      ENGINE_CACHE_DIR: /data
+    volumes:
+      - ${DATA_DIR}:/data
+    mem_limit: ${ENGINE_MEMORY}
+
+volumes:
+  tower-storage:
+  workspace-cache:
+  grafana-token:

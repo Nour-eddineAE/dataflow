@@ -1,0 +1,13 @@
+query Schedule($selector: ScheduleSelector!) {
+  scheduleOrError(scheduleSelector: $selector) {
+    __typename
+    ... on Schedule {
+      cronSchedule
+      executionTimezone
+      scheduleState { id status }
+      futureTicks(limit: 1) { results { timestamp } }
+    }
+    ... on ScheduleNotFoundError { message }
+    ... on PythonError { message }
+  }
+}

@@ -1,0 +1,28 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: dataflow-local
+  namespace: argocd
+spec:
+  project: default
+  sources:
+    - repoURL: https://github.com/Nour-eddineAE/dataflow-helm-charts.git
+      targetRevision: master
+      path: charts/dataflow
+      helm:
+        releaseName: dataflow
+        valueFiles:
+          - $environment/envs/local/values.yaml
+          - $environment/envs/local/secrets.yaml
+    - repoURL: https://github.com/Nour-eddineAE/dataflow-environments.git
+      targetRevision: master
+      ref: environment
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: dataflow
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true

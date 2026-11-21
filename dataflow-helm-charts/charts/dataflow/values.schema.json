@@ -1,0 +1,424 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "required": [
+    "nameOverride",
+    "global",
+    "images",
+    "lake",
+    "auth",
+    "workspace",
+    "spark",
+    "dagster"
+  ],
+  "properties": {
+    "nameOverride": {
+      "enum": [
+        "dataflow"
+      ]
+    },
+    "global": {
+      "type": "object",
+      "required": [
+        "postgresqlSecretName",
+        "serviceAccountName"
+      ],
+      "properties": {
+        "postgresqlSecretName": {
+          "$ref": "#/definitions/name"
+        },
+        "serviceAccountName": {
+          "$ref": "#/definitions/name"
+        }
+      }
+    },
+    "images": {
+      "type": "object",
+      "required": [
+        "workspace",
+        "engine"
+      ],
+      "properties": {
+        "workspace": {
+          "type": "string",
+          "minLength": 1
+        },
+        "engine": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "lake": {
+      "type": "object",
+      "required": [
+        "root",
+        "region",
+        "pathStyle",
+        "ssl"
+      ],
+      "properties": {
+        "root": {
+          "type": "string",
+          "pattern": "^(s3a://[a-z0-9][a-z0-9.-]+|gs://[a-z0-9][a-z0-9._-]+|abfss://[a-z0-9][a-z0-9-]*@[a-z0-9]+\\.dfs\\.core\\.windows\\.net)(/[A-Za-z0-9._/-]*)?$"
+        },
+        "endpoint": {
+          "type": "string"
+        },
+        "region": {
+          "type": "string",
+          "minLength": 1
+        },
+        "pathStyle": {
+          "type": "boolean"
+        },
+        "ssl": {
+          "type": "boolean"
+        }
+      }
+    },
+    "auth": {
+      "type": "object",
+      "required": [
+        "mode",
+        "issuer",
+        "clientId",
+        "admins"
+      ],
+      "properties": {
+        "mode": {
+          "enum": [
+            "none",
+            "oidc"
+          ]
+        },
+        "issuer": {
+          "type": "string"
+        },
+        "internal": {
+          "type": "string"
+        },
+        "clientId": {
+          "type": "string",
+          "minLength": 1
+        },
+        "groupsClaim": {
+          "type": "string",
+          "minLength": 1
+        },
+        "usernameClaim": {
+          "type": "string",
+          "minLength": 1
+        },
+        "admins": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "mode": {
+                "const": "oidc"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "issuer": {
+                "pattern": "^https?://[^ ]+$"
+              }
+            }
+          }
+        }
+      ]
+    },
+    "workspace": {
+      "type": "object",
+      "properties": {
+        "replicas": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 1
+        }
+      }
+    },
+    "spark": {
+      "type": "object",
+      "properties": {
+        "serviceAccount": {
+          "$ref": "#/definitions/name"
+        },
+        "serviceAccountAnnotations": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          }
+        },
+        "driverTemplate": {
+          "type": "object"
+        },
+        "executorTemplate": {
+          "type": "object"
+        },
+        "driverMemory": {
+          "$ref": "#/definitions/memory"
+        },
+        "executorMemory": {
+          "$ref": "#/definitions/memory"
+        },
+        "driverCores": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "executorCores": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "minExecutors": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "maxExecutors": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "ttlSeconds": {
+          "type": "integer",
+          "minimum": 60
+        },
+        "startupTimeoutSeconds": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "runTimeoutSeconds": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "memoryOverhead": {
+          "$ref": "#/definitions/memory"
+        },
+        "cpuRequest": {
+          "type": "string",
+          "pattern": "^$|^[0-9]+(\\.[0-9]+)?m?$"
+        },
+        "singlePod": {
+          "type": "boolean"
+        }
+      }
+    },
+    "gateway": {
+      "type": "object",
+      "properties": {
+        "enabled": {
+          "type": "boolean"
+        },
+        "parentName": {
+          "type": "string"
+        },
+        "parentNamespace": {
+          "type": "string"
+        },
+        "hostname": {
+          "type": "string"
+        }
+      }
+    },
+    "externalSecrets": {
+      "type": "object",
+      "properties": {
+        "enabled": {
+          "type": "boolean"
+        },
+        "storeName": {
+          "type": "string"
+        },
+        "storeKind": {
+          "enum": [
+            "ClusterSecretStore",
+            "SecretStore"
+          ]
+        },
+        "data": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": [
+              "secretKey",
+              "remoteRef"
+            ]
+          }
+        }
+      }
+    },
+    "dagster": {
+      "type": "object"
+    },
+    "keycloak": {
+      "type": "object",
+      "properties": {
+        "enabled": {
+          "type": "boolean"
+        },
+        "image": {
+          "type": "string",
+          "minLength": 1
+        },
+        "resources": {
+          "type": "object"
+        }
+      }
+    },
+    "releases": {
+      "type": "object",
+      "required": [
+        "bucket",
+        "target"
+      ],
+      "properties": {
+        "bucket": {
+          "type": "string",
+          "pattern": "^[a-z0-9][a-z0-9.-]{1,61}[a-z0-9]$"
+        },
+        "target": {
+          "$ref": "#/definitions/name"
+        }
+      }
+    },
+    "namespaces": {
+      "type": "object",
+      "properties": {
+        "create": {
+          "type": "boolean"
+        },
+        "data": {
+          "type": "string",
+          "pattern": "^$|^[a-z0-9]([-a-z0-9]{0,61}[a-z0-9])?$"
+        },
+        "jobs": {
+          "type": "string",
+          "pattern": "^$|^[a-z0-9]([-a-z0-9]{0,61}[a-z0-9])?$"
+        }
+      },
+      "additionalProperties": false
+    },
+    "lakeSecretName": {
+      "$ref": "#/definitions/name"
+    },
+    "networkPolicies": {
+      "type": "object",
+      "properties": {
+        "enabled": {
+          "type": "boolean"
+        }
+      },
+      "additionalProperties": false
+    },
+    "computePolicy": {
+      "type": "object",
+      "description": "The most one run may ask for; empty values mean no limit",
+      "additionalProperties": false,
+      "properties": {
+        "maxDriverMemory": {
+          "type": "string",
+          "pattern": "^$|^[1-9][0-9]*[mMgG]$"
+        },
+        "maxDriverCores": {
+          "type": [
+            "string",
+            "integer"
+          ],
+          "pattern": "^$|^[1-9][0-9]*$",
+          "minimum": 1
+        },
+        "maxExecutorMemory": {
+          "type": "string",
+          "pattern": "^$|^[1-9][0-9]*[mMgG]$"
+        },
+        "maxExecutorCores": {
+          "type": [
+            "string",
+            "integer"
+          ],
+          "pattern": "^$|^[1-9][0-9]*$",
+          "minimum": 1
+        },
+        "maxExecutors": {
+          "type": [
+            "string",
+            "integer"
+          ],
+          "pattern": "^$|^[1-9][0-9]*$",
+          "minimum": 1
+        }
+      }
+    },
+    "engine": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "sourceTimeout": {
+          "type": "string",
+          "minLength": 1
+        },
+        "sourceConnectTimeout": {
+          "type": "string",
+          "minLength": 1
+        },
+        "servingTimeout": {
+          "type": "string",
+          "minLength": 1
+        },
+        "servingConnectTimeout": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    }
+  },
+  "definitions": {
+    "name": {
+      "type": "string",
+      "pattern": "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$",
+      "maxLength": 63
+    },
+    "memory": {
+      "type": "string",
+      "pattern": "^[1-9][0-9]*[mMgG]$"
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "keycloak": {
+            "properties": {
+              "enabled": {
+                "const": true
+              }
+            }
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "gateway": {
+            "required": [
+              "hostname"
+            ],
+            "properties": {
+              "hostname": {
+                "minLength": 1
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
+}

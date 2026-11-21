@@ -1,0 +1,5 @@
+query CapturedLogs($logKey: [String!]!, $limit: Int) {
+  capturedLogs(logKey: $logKey, limit: $limit) {
+    stdout
+  }
+}

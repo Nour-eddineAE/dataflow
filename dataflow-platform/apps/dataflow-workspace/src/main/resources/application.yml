@@ -1,0 +1,278 @@
+spring:
+  application:
+    name: dataflow-workspace
+  main:
+    banner-mode: "off"
+  servlet:
+    multipart:
+      max-file-size: 200MB
+      max-request-size: 200MB
+  web:
+    resources:
+      static-locations: ${env.workspace.ui-location}
+  jackson:
+    default-property-inclusion: non_null
+    use-jackson2-defaults: true
+  mvc:
+    async:
+      request-timeout: 5m
+  datasource:
+    url: ${env.control-plane.url}
+    username: ${env.control-plane.user}
+    password: ${env.control-plane.password}
+  flyway:
+    locations: classpath:db/migration
+  session:
+    timeout: 7d
+    jdbc:
+      initialize-schema: never
+
+server:
+  port: ${env.workspace.port}
+  shutdown: graceful
+  forward-headers-strategy: framework
+  max-http-request-header-size: 64KB
+  servlet:
+    session:
+      cookie:
+        name: DATAFLOW_SESSION
+        http-only: true
+        same-site: lax
+        max-age: 30d
+  compression:
+    enabled: true
+    mime-types: application/json,text/html,text/css,text/javascript,application/javascript,image/svg+xml
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health
+
+jasypt:
+  encryptor:
+    algorithm: ${env.jasypt.algorithm}
+    iv-generator-classname: ${env.jasypt.iv-generator}
+
+dataflow:
+  workspace:
+    auth:
+      mode: ${env.workspace.auth.mode}
+      issuer: ${env.workspace.auth.issuer}
+      internal: ${env.workspace.auth.internal}
+      client-id: ${env.workspace.auth.client-id}
+      client-secret: ${env.workspace.auth.client-secret}
+      groups-claim: ${env.workspace.auth.groups-claim}
+      username-claim: ${env.workspace.auth.username-claim}
+      admins: ${env.workspace.auth.admins}
+    person:
+      id: ${env.workspace.person.id}
+      name: ${env.workspace.person.name}
+      email: ${env.workspace.person.email}
+    git:
+      cache-dir: ${env.workspace.git.cache-dir}
+      file-remotes: ${env.workspace.git.file-remotes}
+      github:
+        host: ${env.workspace.github.host}
+        api: ${env.workspace.github.api}
+        client-id: ${env.workspace.github.client-id}
+        client-secret: ${env.workspace.github.client-secret}
+        app-slug: ${env.workspace.github.app-slug}
+        public-url: ${env.workspace.github.public-url}
+        timeout: ${env.workspace.github.timeout}
+    releases:
+      bucket: ${env.releases.bucket}
+      endpoint: ${env.releases.endpoint}
+      access-key: ${env.releases.access-key}
+      secret-key: ${env.releases.secret-key}
+      target: ${env.releases.target}
+      cache-dir: ${env.releases.cache-dir}
+      refresh-every: ${env.releases.refresh-every}
+      region: ${env.releases.region}
+      path-style: ${env.releases.path-style}
+    serving:
+      url: ${env.serving.url}
+      user: ${env.serving.user}
+      password: ${env.serving.password}
+      database: ${env.serving.database}
+      collection: ${env.serving.collection}
+      lake-root: ${env.lake.root}
+      max-rows: ${env.serving.max-rows}
+      dashboard-rows: ${env.serving.dashboard-rows}
+      timeout: ${env.serving.timeout}
+    tower:
+      url: ${env.tower.url}
+      location: ${env.tower.location}
+      repository: ${env.tower.repository}
+      task-job: ${env.tower.task-job}
+      timeout: ${env.tower.timeout}
+      max-output: ${env.tower.max-output}
+    sources:
+      allowed-hosts: ${env.workspace.sources.allowed-hosts}
+      allowed-paths: ${env.workspace.sources.allowed-paths}
+    http:
+      connect-timeout: ${env.workspace.http.connect-timeout}
+      probe-timeout: ${env.workspace.http.probe-timeout}
+    catalog:
+      sync-every: ${env.workspace.catalog.sync-every}
+      small-file: ${env.workspace.catalog.small-file}
+    access:
+      refresh-every: ${env.workspace.access.refresh-every}
+    storage-access:
+      enabled: ${env.workspace.storage-access.enabled}
+      endpoint: ${env.workspace.storage-access.endpoint}
+      bucket: ${env.workspace.storage-access.bucket}
+      browser-url: ${env.workspace.storage-access.browser-url}
+      timeout: ${env.workspace.storage-access.timeout}
+      legacy-policies: ${env.workspace.storage-access.legacy-policies}
+    housekeeping:
+      preview-days: ${env.workspace.housekeeping.preview-days}
+      event-log-days: ${env.workspace.housekeeping.event-log-days}
+      upload-days: ${env.workspace.housekeeping.upload-days}
+      keep-releases: ${env.workspace.housekeeping.keep-releases}
+      schedule: ${env.workspace.housekeeping.schedule}
+    compute-policy:
+      max-driver-memory: ${env.workspace.compute-policy.max-driver-memory}
+      max-driver-cores: ${env.workspace.compute-policy.max-driver-cores}
+      max-executor-memory: ${env.workspace.compute-policy.max-executor-memory}
+      max-executor-cores: ${env.workspace.compute-policy.max-executor-cores}
+      max-executors: ${env.workspace.compute-policy.max-executors}
+    links:
+      tower: ${env.links.tower}
+      object-store: ${env.links.object-store}
+      serving: ${env.links.serving}
+      dashboards: ${env.links.dashboards}
+      mail: ${env.links.mail}
+      spark-history: ${env.links.spark-history}
+    alerts:
+      grafana: ${env.alerts.grafana}
+      token-file: ${env.alerts.token-file}
+      timeout: ${env.alerts.timeout}
+    dashboards:
+      - uid: dataflow-runs
+        title: Runs
+        group: Pipeline
+        description: Every run of every pipeline, from the event log
+        dataset-variable: dataset
+      - uid: dataflow-quality
+        title: Data quality
+        group: Pipeline
+        description: What was checked, what broke, what went to quarantine
+        dataset-variable: dataset
+      - uid: dataflow-lakehouse
+        title: Lake tables
+        group: Lakehouse
+        description: Versions, commits, live files and sizes of every Delta table
+      - uid: dataflow-warehouse-earthquakes
+        title: Earthquakes
+        group: Business
+        description: Where, how strong, how deep, which regions
+      - uid: dataflow-warehouse-data
+        title: Taxi trips
+        group: Business
+        description: Demand, fares, distances and zones
+
+env:
+  jasypt:
+    algorithm: PBEWITHHMACSHA512ANDAES_256
+    iv-generator: org.jasypt.iv.RandomIvGenerator
+  control-plane:
+    url: jdbc:postgresql://postgres:5432/workspace
+    user: dataflow
+    password: ""
+  releases:
+    bucket: releases
+    endpoint: ""
+    access-key: ""
+    secret-key: ""
+    target: prod
+    cache-dir: /tmp/dataflow/releases
+    refresh-every: 1m
+    region: us-east-1
+    path-style: true
+  workspace:
+    port: 8080
+    ui-location: classpath:/static/
+    auth:
+      mode: none
+      issuer: ""
+      internal: ""
+      client-id: workspace
+      client-secret: ""
+      groups-claim: groups
+      username-claim: preferred_username
+      admins: admins
+    person:
+      id: local
+      name: DataFlow Workspace
+      email: workspace@dataflow.local
+    git:
+      cache-dir: /tmp/dataflow/git
+      file-remotes: ""
+    github:
+      host: https://github.com
+      api: https://api.github.com
+      client-id: ""
+      client-secret: ""
+      app-slug: ""
+      public-url: ""
+      timeout: 15s
+    sources:
+      allowed-hosts: ""
+      allowed-paths: ""
+    http:
+      connect-timeout: 5s
+      probe-timeout: 5s
+    catalog:
+      sync-every: 2m
+      small-file: 32MB
+    access:
+      refresh-every: 30s
+    storage-access:
+      enabled: false
+      endpoint: ${env.releases.endpoint}
+      bucket: ""
+      browser-url: ""
+      timeout: 10s
+      legacy-policies: ""
+    housekeeping:
+      preview-days: 7
+      event-log-days: 14
+      upload-days: 30
+      keep-releases: 5
+      schedule: "-"
+    compute-policy:
+      max-driver-memory: ""
+      max-driver-cores: ""
+      max-executor-memory: ""
+      max-executor-cores: ""
+      max-executors: ""
+  serving:
+    url: http://clickhouse:8123
+    user: dataflow
+    password: ""
+    database: serving
+    collection: lake
+    max-rows: 10000
+    dashboard-rows: 5000
+    timeout: 2m
+  lake:
+    root: s3a://lake
+  tower:
+    url: http://tower-webserver:3000/graphql
+    location: dataflow
+    repository: __repository__
+    task-job: engine_task
+    timeout: 30s
+    max-output: 4MB
+  links:
+    tower: ""
+    object-store: ""
+    serving: ""
+    dashboards: ""
+    mail: ""
+    spark-history: ""
+  alerts:
+    grafana: ""
+    token-file: ""
+    timeout: 10s

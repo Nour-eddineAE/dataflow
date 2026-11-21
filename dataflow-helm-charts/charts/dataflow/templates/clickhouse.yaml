@@ -1,0 +1,107 @@
+{{- if .Values.clickhouse.enabled }}
+{{- $root := urlParse .Values.lake.root }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "dataflow.name" . }}-clickhouse
+  namespace: {{ include "dataflow.dataNamespace" . }}
+data:
+  lake.xml: |
+    <clickhouse>
+      <max_server_memory_usage>805306368</max_server_memory_usage>
+      <mark_cache_size>134217728</mark_cache_size>
+      <logger><level>warning</level></logger>
+      <named_collections>
+        <lake>
+    {{- if eq $root.scheme "abfss" }}
+          <connection_string from_env="AZURE_STORAGE_CONNECTION_STRING"/>
+          <container>{{ $root.userinfo | html }}</container>
+          <blob_path>*</blob_path>
+    {{- else }}
+          <url>{{ include "dataflow.lakeUrl" . | html }}</url>
+          <access_key_id from_env="LAKE_ACCESS_KEY"/>
+          <secret_access_key from_env="LAKE_SECRET_KEY"/>
+    {{- end }}
+        </lake>
+      </named_collections>
+    </clickhouse>
+  access.xml: |
+    <clickhouse>
+      <users>
+        <{{ .Values.clickhouse.user }}>
+          <named_collection_control>1</named_collection_control>
+        </{{ .Values.clickhouse.user }}>
+      </users>
+    </clickhouse>
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "dataflow.name" . }}-clickhouse
+  namespace: {{ include "dataflow.dataNamespace" . }}
+spec:
+  selector:
+    app.kubernetes.io/component: clickhouse
+    app.kubernetes.io/instance: {{ .Release.Name }}
+  ports:
+    - {name: http, port: 8123, targetPort: http}
+    - {name: native, port: 9000, targetPort: native}
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ include "dataflow.name" . }}-clickhouse
+  namespace: {{ include "dataflow.dataNamespace" . }}
+spec:
+  replicas: 1
+  serviceName: {{ include "dataflow.name" . }}-clickhouse
+  selector:
+    matchLabels:
+      app.kubernetes.io/component: clickhouse
+      app.kubernetes.io/instance: {{ .Release.Name }}
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/component: clickhouse
+        app.kubernetes.io/instance: {{ .Release.Name }}
+    spec:
+      automountServiceAccountToken: false
+      containers:
+        - name: clickhouse
+          image: {{ .Values.clickhouse.image | quote }}
+          ports:
+            - {name: http, containerPort: 8123}
+            - {name: native, containerPort: 9000}
+          envFrom:
+            - secretRef: {name: {{ .Values.lakeSecretName }}}
+          env:
+            - {name: CLICKHOUSE_USER, value: {{ .Values.clickhouse.user | quote }}}
+            - {name: CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT, value: "1"}
+            - {name: CLICKHOUSE_DB, value: serving}
+          resources:
+            {{- toYaml .Values.clickhouse.resources | nindent 12 }}
+          startupProbe:
+            httpGet: {path: /ping, port: http}
+            failureThreshold: 60
+            periodSeconds: 5
+          readinessProbe:
+            httpGet: {path: /ping, port: http}
+            periodSeconds: 5
+          volumeMounts:
+            - {name: data, mountPath: /var/lib/clickhouse}
+            - {name: config, mountPath: /etc/clickhouse-server/config.d/lake.xml, subPath: lake.xml}
+            - {name: config, mountPath: /etc/clickhouse-server/users.d/lake-access.xml, subPath: access.xml}
+      volumes:
+        - name: config
+          configMap: {name: {{ include "dataflow.name" . }}-clickhouse}
+  volumeClaimTemplates:
+    - metadata: {name: data}
+      spec:
+        accessModes: [ReadWriteOnce]
+        {{- if .Values.clickhouse.storage.storageClass }}
+        storageClassName: {{ .Values.clickhouse.storage.storageClass | quote }}
+        {{- end }}
+        resources:
+          requests:
+            storage: {{ .Values.clickhouse.storage.size }}
+{{- end }}

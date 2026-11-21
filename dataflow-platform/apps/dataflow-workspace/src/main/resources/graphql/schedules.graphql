@@ -1,0 +1,12 @@
+query Schedules($selector: RepositorySelector!) {
+  schedulesOrError(repositorySelector: $selector) {
+    __typename
+    ... on Schedules {
+      results {
+        name
+        scheduleState { status }
+      }
+    }
+    ... on Error { message }
+  }
+}

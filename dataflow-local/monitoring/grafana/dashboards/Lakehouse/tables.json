@@ -1,0 +1,2262 @@
+{
+  "uid": "dataflow-lakehouse",
+  "title": "Lakehouse · Tables",
+  "tags": [
+    "dataflow",
+    "lakehouse"
+  ],
+  "description": "Every dataset's Delta tables on RustFS (bronze, silver, history, quarantine, gold, reference), discovered from the lake and read straight from their transaction logs through ClickHouse: versions, commits, live files, rows, file sizes, partitions and the commit log.",
+  "editable": true,
+  "graphTooltip": 1,
+  "schemaVersion": 39,
+  "version": 1,
+  "timezone": "browser",
+  "refresh": "1m",
+  "liveNow": false,
+  "time": {
+    "from": "now-6h",
+    "to": "now"
+  },
+  "timepicker": {
+    "refresh_intervals": [
+      "30s",
+      "1m",
+      "5m",
+      "15m",
+      "1h"
+    ]
+  },
+  "fiscalYearStartMonth": 0,
+  "weekStart": "",
+  "templating": {
+    "list": [
+      {
+        "name": "dataset",
+        "label": "Dataset",
+        "type": "query",
+        "datasource": {
+          "type": "grafana-clickhouse-datasource",
+          "uid": "dataflow-clickhouse"
+        },
+        "query": "SELECT DISTINCT splitByChar('/', replaceRegexpOne(_path, '^[^/]+/(.+)/_delta_log/.*$', '\\\\1'))[2] AS dataset\nFROM s3(lake, filename = '**/_delta_log/00000000000000000000.json', format = 'JSONAsString')\nWHERE splitByChar('/', replaceRegexpOne(_path, '^[^/]+/(.+)/_delta_log/.*$', '\\\\1'))[1] IN ('bronze', 'silver', 'history', 'quarantine', 'gold', 'reference')\nORDER BY dataset",
+        "definition": "SELECT DISTINCT splitByChar('/', replaceRegexpOne(_path, '^[^/]+/(.+)/_delta_log/.*$', '\\\\1'))[2] AS dataset\nFROM s3(lake, filename = '**/_delta_log/00000000000000000000.json', format = 'JSONAsString')\nWHERE splitByChar('/', replaceRegexpOne(_path, '^[^/]+/(.+)/_delta_log/.*$', '\\\\1'))[1] IN ('bronze', 'silver', 'history', 'quarantine', 'gold', 'reference')\nORDER BY dataset",
+        "multi": true,
+        "includeAll": true,
+        "refresh": 2,
+        "sort": 1,
+        "hide": 0,
+        "options": [],
+        "current": {
+          "selected": true,
+          "text": [
+            "All"
+          ],
+          "value": [
+            "$__all"
+          ]
+        }
+      }
+    ]
+  },
+  "annotations": {
+    "list": [
+      {
+        "builtIn": 1,
+        "datasource": {
+          "type": "grafana",
+          "uid": "-- Grafana --"
+        },
+        "enable": true,
+        "hide": true,
+        "iconColor": "rgba(0, 211, 255, 1)",
+        "name": "Annotations & Alerts",
+        "type": "dashboard"
+      },
+      {
+        "name": "Runs",
+        "enable": true,
+        "iconColor": "rgba(184, 119, 217, 0.55)",
+        "datasource": {
+          "type": "grafana-clickhouse-datasource",
+          "uid": "dataflow-clickhouse"
+        },
+        "target": {
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "dataflow-clickhouse"
+          },
+          "editorType": "sql",
+          "format": 1,
+          "queryType": "table",
+          "refId": "Anno",
+          "rawSql": "SELECT started_at AS time, ended_at AS timeEnd, concat(dataset, ' · ', lower(status), ' · ', trigger) AS text FROM serving.run_events WHERE event_type = 'run' AND status IN ('COMPLETED', 'FAILED') AND $__timeFilter(started_at)"
+        }
+      }
+    ]
+  },
+  "links": [
+    {
+      "title": "DataFlow",
+      "type": "dashboards",
+      "tags": [
+        "dataflow"
+      ],
+      "asDropdown": true,
+      "includeVars": false,
+      "keepTime": true,
+      "targetBlank": false,
+      "icon": "external link",
+      "tooltip": "",
+      "url": ""
+    }
+  ],
+  "panels": [
+    {
+      "type": "stat",
+      "title": "Live rows",
+      "description": "Rows in the current snapshot of the selected datasets' tables, per layer: bronze (as ingested, every chunk), silver (cleaned, every chunk), history (every version of every fact, SCD2), gold (aggregates).",
+      "datasource": {
+        "type": "grafana-clickhouse-datasource",
+        "uid": "dataflow-clickhouse"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "dataflow-clickhouse"
+          },
+          "editorType": "sql",
+          "format": 1,
+          "queryType": "table",
+          "rawSql": "WITH log AS (\n    SELECT * FROM (\n        SELECT replaceRegexpOne(_path, '^[^/]+/(.+)/_delta_log/.*$', '\\\\1') AS path,\n               path AS table,\n               splitByChar('/', path)[1] AS layer,\n               splitByChar('/', path)[2] AS dataset,\n               toUInt64(extract(_file, '^(\\\\d+)\\\\.json$')) AS version,\n               json\n        FROM s3(lake, filename = '**/_delta_log/*.json', format = 'JSONAsString')\n    )\n    WHERE layer IN ('bronze', 'silver', 'history', 'quarantine', 'gold', 'reference') AND dataset IN (${dataset:singlequote})\n),\nadds AS (\n    SELECT table, layer, dataset, version, JSONExtractString(json, 'add', 'path') AS file, JSONExtractUInt(json, 'add', 'size') AS bytes,\n           JSONExtractRaw(json, 'add', 'partitionValues') AS part,\n           JSONExtractUInt(JSONExtractString(json, 'add', 'stats'), 'numRecords') AS records\n    FROM log WHERE JSONHas(json, 'add')\n),\nremoves AS (\n    SELECT table, file, min(version) AS removed_in\n    FROM (SELECT table, version, JSONExtractString(json, 'remove', 'path') AS file FROM log WHERE JSONHas(json, 'remove'))\n    GROUP BY table, file\n),\nfiles AS (\n    SELECT a.table, a.layer, a.dataset, a.version AS added_in, if(r.removed_in = 0, 18446744073709551615, r.removed_in) AS removed_in, a.bytes, a.records, a.part\n    FROM adds a LEFT JOIN removes r ON r.table = a.table AND r.file = a.file\n),\ncommits AS (\n    SELECT table, layer, dataset, version,\n           fromUnixTimestamp64Milli(JSONExtractInt(json, 'commitInfo', 'timestamp')) AS ts,\n           JSONExtractString(json, 'commitInfo', 'operation') AS operation,\n           JSONExtractRaw(json, 'commitInfo', 'operationMetrics') AS metrics,\n           JSONExtractString(json, 'commitInfo', 'operationParameters', 'predicate') AS predicate\n    FROM log WHERE JSONHas(json, 'commitInfo')\n)\nSELECT sumIf(records, layer = 'bronze') AS bronze, sumIf(records, layer = 'silver') AS silver,\n       sumIf(records, layer = 'history') AS history, sumIf(records, layer = 'gold') AS gold\nFROM files WHERE removed_in = 18446744073709551615",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "mappings": [],
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "text"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "text",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "bronze"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#CD7F32"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "silver"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#C0C8D0"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "history"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#FF9830"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "quarantine"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#F2495C"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "gold"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#FADE2A"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "reference"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#8AB8FF"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "none",
+        "graphMode": "none",
+        "textMode": "auto",
+        "justifyMode": "center",
+        "orientation": "auto",
+        "wideLayout": true,
+        "showPercentChange": false
+      },
+      "id": 1,
+      "gridPos": {
+        "h": 5,
+        "w": 7,
+        "x": 0,
+        "y": 0
+      }
+    },
+    {
+      "type": "stat",
+      "title": "Lake size",
+      "description": "Bytes in the live data files of the selected datasets' tables (log files and removed files excluded).",
+      "datasource": {
+        "type": "grafana-clickhouse-datasource",
+        "uid": "dataflow-clickhouse"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "dataflow-clickhouse"
+          },
+          "editorType": "sql",
+          "format": 1,
+          "queryType": "table",
+          "rawSql": "WITH log AS (\n    SELECT * FROM (\n        SELECT replaceRegexpOne(_path, '^[^/]+/(.+)/_delta_log/.*$', '\\\\1') AS path,\n               path AS table,\n               splitByChar('/', path)[1] AS layer,\n               splitByChar('/', path)[2] AS dataset,\n               toUInt64(extract(_file, '^(\\\\d+)\\\\.json$')) AS version,\n               json\n        FROM s3(lake, filename = '**/_delta_log/*.json', format = 'JSONAsString')\n    )\n    WHERE layer IN ('bronze', 'silver', 'history', 'quarantine', 'gold', 'reference') AND dataset IN (${dataset:singlequote})\n),\nadds AS (\n    SELECT table, layer, dataset, version, JSONExtractString(json, 'add', 'path') AS file, JSONExtractUInt(json, 'add', 'size') AS bytes,\n           JSONExtractRaw(json, 'add', 'partitionValues') AS part,\n           JSONExtractUInt(JSONExtractString(json, 'add', 'stats'), 'numRecords') AS records\n    FROM log WHERE JSONHas(json, 'add')\n),\nremoves AS (\n    SELECT table, file, min(version) AS removed_in\n    FROM (SELECT table, version, JSONExtractString(json, 'remove', 'path') AS file FROM log WHERE JSONHas(json, 'remove'))\n    GROUP BY table, file\n),\nfiles AS (\n    SELECT a.table, a.layer, a.dataset, a.version AS added_in, if(r.removed_in = 0, 18446744073709551615, r.removed_in) AS removed_in, a.bytes, a.records, a.part\n    FROM adds a LEFT JOIN removes r ON r.table = a.table AND r.file = a.file\n),\ncommits AS (\n    SELECT table, layer, dataset, version,\n           fromUnixTimestamp64Milli(JSONExtractInt(json, 'commitInfo', 'timestamp')) AS ts,\n           JSONExtractString(json, 'commitInfo', 'operation') AS operation,\n           JSONExtractRaw(json, 'commitInfo', 'operationMetrics') AS metrics,\n           JSONExtractString(json, 'commitInfo', 'operationParameters', 'predicate') AS predicate\n    FROM log WHERE JSONHas(json, 'commitInfo')\n)\nSELECT sum(bytes) AS lake_bytes FROM files WHERE removed_in = 18446744073709551615",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "bytes",
+          "mappings": [],
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "#8AB8FF",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "none",
+        "graphMode": "none",
+        "textMode": "auto",
+        "justifyMode": "center",
+        "orientation": "auto",
+        "wideLayout": true,
+        "showPercentChange": false
+      },
+      "id": 2,
+      "gridPos": {
+        "h": 5,
+        "w": 3,
+        "x": 7,
+        "y": 0
+      }
+    },
+    {
+      "type": "stat",
+      "title": "Commits · 24h",
+      "description": "Delta commits across the selected datasets' tables in the last 24 hours. Each pipeline chunk commits to bronze, silver and history; gold is rebuilt once per run.",
+      "datasource": {
+        "type": "grafana-clickhouse-datasource",
+        "uid": "dataflow-clickhouse"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "dataflow-clickhouse"
+          },
+          "editorType": "sql",
+          "format": 1,
+          "queryType": "table",
+          "rawSql": "WITH log AS (\n    SELECT * FROM (\n        SELECT replaceRegexpOne(_path, '^[^/]+/(.+)/_delta_log/.*$', '\\\\1') AS path,\n               path AS table,\n               splitByChar('/', path)[1] AS layer,\n               splitByChar('/', path)[2] AS dataset,\n               toUInt64(extract(_file, '^(\\\\d+)\\\\.json$')) AS version,\n               json\n        FROM s3(lake, filename = '**/_delta_log/*.json', format = 'JSONAsString')\n    )\n    WHERE layer IN ('bronze', 'silver', 'history', 'quarantine', 'gold', 'reference') AND dataset IN (${dataset:singlequote})\n),\nadds AS (\n    SELECT table, layer, dataset, version, JSONExtractString(json, 'add', 'path') AS file, JSONExtractUInt(json, 'add', 'size') AS bytes,\n           JSONExtractRaw(json, 'add', 'partitionValues') AS part,\n           JSONExtractUInt(JSONExtractString(json, 'add', 'stats'), 'numRecords') AS records\n    FROM log WHERE JSONHas(json, 'add')\n),\nremoves AS (\n    SELECT table, file, min(version) AS removed_in\n    FROM (SELECT table, version, JSONExtractString(json, 'remove', 'path') AS file FROM log WHERE JSONHas(json, 'remove'))\n    GROUP BY table, file\n),\nfiles AS (\n    SELECT a.table, a.layer, a.dataset, a.version AS added_in, if(r.removed_in = 0, 18446744073709551615, r.removed_in) AS removed_in, a.bytes, a.records, a.part\n    FROM adds a LEFT JOIN removes r ON r.table = a.table AND r.file = a.file\n),\ncommits AS (\n    SELECT table, layer, dataset, version,\n           fromUnixTimestamp64Milli(JSONExtractInt(json, 'commitInfo', 'timestamp')) AS ts,\n           JSONExtractString(json, 'commitInfo', 'operation') AS operation,\n           JSONExtractRaw(json, 'commitInfo', 'operationMetrics') AS metrics,\n           JSONExtractString(json, 'commitInfo', 'operationParameters', 'predicate') AS predicate\n    FROM log WHERE JSONHas(json, 'commitInfo')\n)\nSELECT count() AS commits FROM commits WHERE ts > now() - INTERVAL 1 DAY",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "mappings": [],
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "#B877D9",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "none",
+        "graphMode": "none",
+        "textMode": "auto",
+        "justifyMode": "center",
+        "orientation": "auto",
+        "wideLayout": true,
+        "showPercentChange": false
+      },
+      "id": 3,
+      "gridPos": {
+        "h": 5,
+        "w": 3,
+        "x": 10,
+        "y": 0
+      }
+    },
+    {
+      "type": "stat",
+      "title": "Last commit",
+      "description": "Newest commit on any lake table: lake freshness.",
+      "datasource": {
+        "type": "grafana-clickhouse-datasource",
+        "uid": "dataflow-clickhouse"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "dataflow-clickhouse"
+          },
+          "editorType": "sql",
+          "format": 1,
+          "queryType": "table",
+          "rawSql": "WITH log AS (\n    SELECT * FROM (\n        SELECT replaceRegexpOne(_path, '^[^/]+/(.+)/_delta_log/.*$', '\\\\1') AS path,\n               path AS table,\n               splitByChar('/', path)[1] AS layer,\n               splitByChar('/', path)[2] AS dataset,\n               toUInt64(extract(_file, '^(\\\\d+)\\\\.json$')) AS version,\n               json\n        FROM s3(lake, filename = '**/_delta_log/*.json', format = 'JSONAsString')\n    )\n    WHERE layer IN ('bronze', 'silver', 'history', 'quarantine', 'gold', 'reference') AND dataset IN (${dataset:singlequote})\n),\nadds AS (\n    SELECT table, layer, dataset, version, JSONExtractString(json, 'add', 'path') AS file, JSONExtractUInt(json, 'add', 'size') AS bytes,\n           JSONExtractRaw(json, 'add', 'partitionValues') AS part,\n           JSONExtractUInt(JSONExtractString(json, 'add', 'stats'), 'numRecords') AS records\n    FROM log WHERE JSONHas(json, 'add')\n),\nremoves AS (\n    SELECT table, file, min(version) AS removed_in\n    FROM (SELECT table, version, JSONExtractString(json, 'remove', 'path') AS file FROM log WHERE JSONHas(json, 'remove'))\n    GROUP BY table, file\n),\nfiles AS (\n    SELECT a.table, a.layer, a.dataset, a.version AS added_in, if(r.removed_in = 0, 18446744073709551615, r.removed_in) AS removed_in, a.bytes, a.records, a.part\n    FROM adds a LEFT JOIN removes r ON r.table = a.table AND r.file = a.file\n),\ncommits AS (\n    SELECT table, layer, dataset, version,\n           fromUnixTimestamp64Milli(JSONExtractInt(json, 'commitInfo', 'timestamp')) AS ts,\n           JSONExtractString(json, 'commitInfo', 'operation') AS operation,\n           JSONExtractRaw(json, 'commitInfo', 'operationMetrics') AS metrics,\n           JSONExtractString(json, 'commitInfo', 'operationParameters', 'predicate') AS predicate\n    FROM log WHERE JSONHas(json, 'commitInfo')\n)\nSELECT toUnixTimestamp64Milli(max(ts)) AS last_commit FROM commits",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "dateTimeFromNow",
+          "mappings": [],
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "text",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "none",
+        "graphMode": "none",
+        "textMode": "auto",
+        "justifyMode": "center",
+        "orientation": "auto",
+        "wideLayout": true,
+        "showPercentChange": false
+      },
+      "id": 4,
+      "gridPos": {
+        "h": 5,
+        "w": 3,
+        "x": 13,
+        "y": 0
+      }
+    },
+    {
+      "type": "gauge",
+      "title": "Compaction debt",
+      "description": "Share of live data files beyond the ideal count (one per partition, or one per 128 MB if larger). Every chunk adds a file; the versioner's hourly OPTIMIZE brings this back to 0.",
+      "datasource": {
+        "type": "grafana-clickhouse-datasource",
+        "uid": "dataflow-clickhouse"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "dataflow-clickhouse"
+          },
+          "editorType": "sql",
+          "format": 1,
+          "queryType": "table",
+          "rawSql": "WITH log AS (\n    SELECT * FROM (\n        SELECT replaceRegexpOne(_path, '^[^/]+/(.+)/_delta_log/.*$', '\\\\1') AS path,\n               path AS table,\n               splitByChar('/', path)[1] AS layer,\n               splitByChar('/', path)[2] AS dataset,\n               toUInt64(extract(_file, '^(\\\\d+)\\\\.json$')) AS version,\n               json\n        FROM s3(lake, filename = '**/_delta_log/*.json', format = 'JSONAsString')\n    )\n    WHERE layer IN ('bronze', 'silver', 'history', 'quarantine', 'gold', 'reference') AND dataset IN (${dataset:singlequote})\n),\nadds AS (\n    SELECT table, layer, dataset, version, JSONExtractString(json, 'add', 'path') AS file, JSONExtractUInt(json, 'add', 'size') AS bytes,\n           JSONExtractRaw(json, 'add', 'partitionValues') AS part,\n           JSONExtractUInt(JSONExtractString(json, 'add', 'stats'), 'numRecords') AS records\n    FROM log WHERE JSONHas(json, 'add')\n),\nremoves AS (\n    SELECT table, file, min(version) AS removed_in\n    FROM (SELECT table, version, JSONExtractString(json, 'remove', 'path') AS file FROM log WHERE JSONHas(json, 'remove'))\n    GROUP BY table, file\n),\nfiles AS (\n    SELECT a.table, a.layer, a.dataset, a.version AS added_in, if(r.removed_in = 0, 18446744073709551615, r.removed_in) AS removed_in, a.bytes, a.records, a.part\n    FROM adds a LEFT JOIN removes r ON r.table = a.table AND r.file = a.file\n),\ncommits AS (\n    SELECT table, layer, dataset, version,\n           fromUnixTimestamp64Milli(JSONExtractInt(json, 'commitInfo', 'timestamp')) AS ts,\n           JSONExtractString(json, 'commitInfo', 'operation') AS operation,\n           JSONExtractRaw(json, 'commitInfo', 'operationMetrics') AS metrics,\n           JSONExtractString(json, 'commitInfo', 'operationParameters', 'predicate') AS predicate\n    FROM log WHERE JSONHas(json, 'commitInfo')\n)\n, debt AS (\n    SELECT table, count() AS live_files, greatest(uniqExact(part), toUInt64(ceil(sum(bytes) / 134217728))) AS ideal_files\n    FROM files WHERE removed_in = 18446744073709551615 GROUP BY table\n)\nSELECT round(100 * sum(greatest(0, toInt64(live_files) - toInt64(ideal_files))) / sum(live_files), 1) AS compaction_debt FROM debt",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "min": 0,
+          "max": 100,
+          "mappings": [],
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "#73BF69",
+                "value": null
+              },
+              {
+                "color": "#FADE2A",
+                "value": 50
+              },
+              {
+                "color": "#F2495C",
+                "value": 80
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "showThresholdLabels": false,
+        "showThresholdMarkers": true,
+        "orientation": "auto",
+        "minVizHeight": 75,
+        "minVizWidth": 75,
+        "sizing": "auto"
+      },
+      "id": 5,
+      "gridPos": {
+        "h": 5,
+        "w": 4,
+        "x": 16,
+        "y": 0
+      }
+    },
+    {
+      "type": "stat",
+      "title": "Catalog",
+      "description": "Datasets and Delta tables found under the lake's layers (bronze, silver, history, quarantine, gold, reference). A new pipeline spec shows up here after its first run.",
+      "datasource": {
+        "type": "grafana-clickhouse-datasource",
+        "uid": "dataflow-clickhouse"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "dataflow-clickhouse"
+          },
+          "editorType": "sql",
+          "format": 1,
+          "queryType": "table",
+          "rawSql": "WITH log AS (\n    SELECT * FROM (\n        SELECT replaceRegexpOne(_path, '^[^/]+/(.+)/_delta_log/.*$', '\\\\1') AS path,\n               path AS table,\n               splitByChar('/', path)[1] AS layer,\n               splitByChar('/', path)[2] AS dataset,\n               toUInt64(extract(_file, '^(\\\\d+)\\\\.json$')) AS version,\n               json\n        FROM s3(lake, filename = '**/_delta_log/*.json', format = 'JSONAsString')\n    )\n    WHERE layer IN ('bronze', 'silver', 'history', 'quarantine', 'gold', 'reference') AND dataset IN (${dataset:singlequote})\n),\nadds AS (\n    SELECT table, layer, dataset, version, JSONExtractString(json, 'add', 'path') AS file, JSONExtractUInt(json, 'add', 'size') AS bytes,\n           JSONExtractRaw(json, 'add', 'partitionValues') AS part,\n           JSONExtractUInt(JSONExtractString(json, 'add', 'stats'), 'numRecords') AS records\n    FROM log WHERE JSONHas(json, 'add')\n),\nremoves AS (\n    SELECT table, file, min(version) AS removed_in\n    FROM (SELECT table, version, JSONExtractString(json, 'remove', 'path') AS file FROM log WHERE JSONHas(json, 'remove'))\n    GROUP BY table, file\n),\nfiles AS (\n    SELECT a.table, a.layer, a.dataset, a.version AS added_in, if(r.removed_in = 0, 18446744073709551615, r.removed_in) AS removed_in, a.bytes, a.records, a.part\n    FROM adds a LEFT JOIN removes r ON r.table = a.table AND r.file = a.file\n),\ncommits AS (\n    SELECT table, layer, dataset, version,\n           fromUnixTimestamp64Milli(JSONExtractInt(json, 'commitInfo', 'timestamp')) AS ts,\n           JSONExtractString(json, 'commitInfo', 'operation') AS operation,\n           JSONExtractRaw(json, 'commitInfo', 'operationMetrics') AS metrics,\n           JSONExtractString(json, 'commitInfo', 'operationParameters', 'predicate') AS predicate\n    FROM log WHERE JSONHas(json, 'commitInfo')\n)\nSELECT uniqExact(dataset) AS datasets, uniqExact(table) AS tables FROM commits",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "mappings": [],
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "text"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "text",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "none",
+        "graphMode": "none",
+        "textMode": "value_and_name",
+        "justifyMode": "center",
+        "orientation": "auto",
+        "wideLayout": true,
+        "showPercentChange": false,
+        "text": {
+          "titleSize": 13,
+          "valueSize": 30
+        }
+      },
+      "id": 6,
+      "gridPos": {
+        "h": 5,
+        "w": 4,
+        "x": 20,
+        "y": 0
+      }
+    },
+    {
+      "type": "table",
+      "title": "Table health",
+      "description": "One row per Delta table, computed from its _delta_log on RustFS through ClickHouse's s3 table function: log version, commits, live files and bytes, rows (from file stats), average file size and the small-file share.",
+      "datasource": {
+        "type": "grafana-clickhouse-datasource",
+        "uid": "dataflow-clickhouse"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "dataflow-clickhouse"
+          },
+          "editorType": "sql",
+          "format": 1,
+          "queryType": "table",
+          "rawSql": "WITH log AS (\n    SELECT * FROM (\n        SELECT replaceRegexpOne(_path, '^[^/]+/(.+)/_delta_log/.*$', '\\\\1') AS path,\n               path AS table,\n               splitByChar('/', _path)[1] AS bucket,\n               splitByChar('/', path)[1] AS layer,\n               splitByChar('/', path)[2] AS dataset,\n               toUInt64(extract(_file, '^(\\\\d+)\\\\.json$')) AS version,\n               json\n        FROM s3(lake, filename = '**/_delta_log/*.json', format = 'JSONAsString')\n    )\n    WHERE layer IN ('bronze', 'silver', 'history', 'quarantine', 'gold', 'reference') AND dataset IN (${dataset:singlequote})\n),\nadds AS (\n    SELECT table, layer, dataset, version, JSONExtractString(json, 'add', 'path') AS file, JSONExtractUInt(json, 'add', 'size') AS bytes,\n           JSONExtractRaw(json, 'add', 'partitionValues') AS part,\n           JSONExtractUInt(JSONExtractString(json, 'add', 'stats'), 'numRecords') AS records\n    FROM log WHERE JSONHas(json, 'add')\n),\nremoves AS (\n    SELECT table, file, min(version) AS removed_in\n    FROM (SELECT table, version, JSONExtractString(json, 'remove', 'path') AS file FROM log WHERE JSONHas(json, 'remove'))\n    GROUP BY table, file\n),\nfiles AS (\n    SELECT a.table, a.layer, a.dataset, a.version AS added_in, if(r.removed_in = 0, 18446744073709551615, r.removed_in) AS removed_in, a.bytes, a.records, a.part\n    FROM adds a LEFT JOIN removes r ON r.table = a.table AND r.file = a.file\n),\ncommits AS (\n    SELECT table, layer, dataset, bucket, version,\n           fromUnixTimestamp64Milli(JSONExtractInt(json, 'commitInfo', 'timestamp')) AS ts,\n           JSONExtractString(json, 'commitInfo', 'operation') AS operation,\n           JSONExtractRaw(json, 'commitInfo', 'operationMetrics') AS metrics,\n           JSONExtractString(json, 'commitInfo', 'operationParameters', 'predicate') AS predicate\n    FROM log WHERE JSONHas(json, 'commitInfo')\n)\n, live AS (\n    SELECT table, count() AS live_files, sum(bytes) AS live_bytes, sum(records) AS live_records,\n           greatest(uniqExact(part), toUInt64(ceil(sum(bytes) / 134217728))) AS ideal_files\n    FROM files WHERE removed_in = 18446744073709551615 GROUP BY table\n), hist AS (\n    SELECT table, any(layer) AS layer, any(dataset) AS dataset, any(bucket) AS bucket, max(version) AS version, count() AS commits, max(ts) AS last_commit FROM commits GROUP BY table\n)\nSELECT h.layer AS layer, h.dataset AS dataset, concat('s3a://', h.bucket, '/', h.table, '/') AS location, h.version AS version, h.commits AS commits,\n       l.live_files AS live_files, l.live_bytes AS size, l.live_records AS rows, round(l.live_bytes / nullIf(l.live_files, 0)) AS avg_file,\n       round(100 * greatest(0, toInt64(l.live_files) - toInt64(l.ideal_files)) / nullIf(l.live_files, 0), 1) AS compaction_debt, toUnixTimestamp64Milli(h.last_commit) AS last_commit\nFROM hist h LEFT JOIN live l ON l.table = h.table\nORDER BY h.dataset, indexOf(['bronze', 'silver', 'history', 'quarantine', 'gold', 'reference'], h.layer), h.table",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            },
+            "inspect": false,
+            "filterable": false
+          },
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "text",
+                "value": null
+              }
+            ]
+          },
+          "mappings": []
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "layer"
+            },
+            "properties": [
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-text"
+                }
+              },
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "type": "value",
+                    "options": {
+                      "bronze": {
+                        "color": "#CD7F32",
+                        "index": 0
+                      }
+                    }
+                  },
+                  {
+                    "type": "value",
+                    "options": {
+                      "silver": {
+                        "color": "#C0C8D0",
+                        "index": 1
+                      }
+                    }
+                  },
+                  {
+                    "type": "value",
+                    "options": {
+                      "history": {
+                        "color": "#FF9830",
+                        "index": 2
+                      }
+                    }
+                  },
+                  {
+                    "type": "value",
+                    "options": {
+                      "quarantine": {
+                        "color": "#F2495C",
+                        "index": 3
+                      }
+                    }
+                  },
+                  {
+                    "type": "value",
+                    "options": {
+                      "gold": {
+                        "color": "#FADE2A",
+                        "index": 4
+                      }
+                    }
+                  },
+                  {
+                    "type": "value",
+                    "options": {
+                      "reference": {
+                        "color": "#8AB8FF",
+                        "index": 5
+                      }
+                    }
+                  }
+                ]
+              },
+              {
+                "id": "custom.width",
+                "value": 110
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "location"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 330
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "dataset"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 130
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": "^(size|avg_file)$"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "bytes"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "avg_file"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "avg file"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "live_files"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "live files"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "compaction_debt"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "compaction debt"
+              },
+              {
+                "id": "unit",
+                "value": "percent"
+              },
+              {
+                "id": "min",
+                "value": 0
+              },
+              {
+                "id": "max",
+                "value": 100
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "gauge",
+                  "mode": "gradient",
+                  "valueDisplayMode": "text"
+                }
+              },
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    {
+                      "color": "#73BF69",
+                      "value": null
+                    },
+                    {
+                      "color": "#FADE2A",
+                      "value": 50
+                    },
+                    {
+                      "color": "#F2495C",
+                      "value": 80
+                    }
+                  ]
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "last_commit"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "dateTimeFromNow"
+              },
+              {
+                "id": "displayName",
+                "value": "last commit"
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "showHeader": true,
+        "cellHeight": "md",
+        "footer": {
+          "show": false,
+          "reducer": [
+            "sum"
+          ],
+          "countRows": false,
+          "fields": ""
+        }
+      },
+      "id": 7,
+      "gridPos": {
+        "h": 10,
+        "w": 24,
+        "x": 0,
+        "y": 5
+      }
+    },
+    {
+      "type": "row",
+      "title": "History",
+      "collapsed": false,
+      "id": 8,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 15
+      },
+      "panels": []
+    },
+    {
+      "type": "timeseries",
+      "title": "Live rows by commit",
+      "description": "Rows in each table's snapshot after every commit. Bronze and silver grow with each run (one chunk each); history grows only with new facts or new versions of changed facts (SCD2); gold is replaced per run.",
+      "datasource": {
+        "type": "grafana-clickhouse-datasource",
+        "uid": "dataflow-clickhouse"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "dataflow-clickhouse"
+          },
+          "editorType": "sql",
+          "format": 0,
+          "queryType": "timeseries",
+          "rawSql": "WITH log AS (\n    SELECT * FROM (\n        SELECT replaceRegexpOne(_path, '^[^/]+/(.+)/_delta_log/.*$', '\\\\1') AS path,\n               path AS table,\n               splitByChar('/', path)[1] AS layer,\n               splitByChar('/', path)[2] AS dataset,\n               toUInt64(extract(_file, '^(\\\\d+)\\\\.json$')) AS version,\n               json\n        FROM s3(lake, filename = '**/_delta_log/*.json', format = 'JSONAsString')\n    )\n    WHERE layer IN ('bronze', 'silver', 'history', 'quarantine', 'gold', 'reference') AND dataset IN (${dataset:singlequote})\n),\nadds AS (\n    SELECT table, layer, dataset, version, JSONExtractString(json, 'add', 'path') AS file, JSONExtractUInt(json, 'add', 'size') AS bytes,\n           JSONExtractRaw(json, 'add', 'partitionValues') AS part,\n           JSONExtractUInt(JSONExtractString(json, 'add', 'stats'), 'numRecords') AS records\n    FROM log WHERE JSONHas(json, 'add')\n),\nremoves AS (\n    SELECT table, file, min(version) AS removed_in\n    FROM (SELECT table, version, JSONExtractString(json, 'remove', 'path') AS file FROM log WHERE JSONHas(json, 'remove'))\n    GROUP BY table, file\n),\nfiles AS (\n    SELECT a.table, a.layer, a.dataset, a.version AS added_in, if(r.removed_in = 0, 18446744073709551615, r.removed_in) AS removed_in, a.bytes, a.records, a.part\n    FROM adds a LEFT JOIN removes r ON r.table = a.table AND r.file = a.file\n),\ncommits AS (\n    SELECT table, layer, dataset, version,\n           fromUnixTimestamp64Milli(JSONExtractInt(json, 'commitInfo', 'timestamp')) AS ts,\n           JSONExtractString(json, 'commitInfo', 'operation') AS operation,\n           JSONExtractRaw(json, 'commitInfo', 'operationMetrics') AS metrics,\n           JSONExtractString(json, 'commitInfo', 'operationParameters', 'predicate') AS predicate\n    FROM log WHERE JSONHas(json, 'commitInfo')\n)\nSELECT c.ts AS time, c.table AS table, sumIf(f.records, f.added_in <= c.version AND f.removed_in > c.version) AS rows\nFROM commits c LEFT JOIN files f ON f.table = c.table\nWHERE $__timeFilter(c.ts) AND c.layer IN ('bronze', 'silver', 'history', 'gold')\nGROUP BY c.table, c.version, c.ts ORDER BY time",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "drawStyle": "line",
+            "lineInterpolation": "stepAfter",
+            "lineWidth": 2,
+            "fillOpacity": 18,
+            "gradientMode": "opacity",
+            "showPoints": "always",
+            "pointSize": 5,
+            "spanNulls": true,
+            "stacking": {
+              "mode": "none",
+              "group": "A"
+            },
+            "axisBorderShow": false,
+            "barAlignment": 0,
+            "axisPlacement": "auto",
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            },
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            }
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "text",
+                "value": null
+              }
+            ]
+          },
+          "mappings": [],
+          "displayName": "${__field.labels.table}"
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "bronze"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#CD7F32"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "silver"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#C0C8D0"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "history"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#FF9830"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "quarantine"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#F2495C"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "gold"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#FADE2A"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "reference"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#8AB8FF"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": ".*bronze.*"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#CD7F32"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": ".*silver.*"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#C0C8D0"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": ".*history.*"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#FF9830"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": ".*quarantine.*"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#F2495C"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": ".*gold.*"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#FADE2A"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": ".*reference.*"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#8AB8FF"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "legend": {
+          "showLegend": true,
+          "displayMode": "list",
+          "placement": "bottom",
+          "calcs": []
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "id": 9,
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 0,
+        "y": 16
+      },
+      "transformations": [
+        {
+          "id": "partitionByValues",
+          "options": {
+            "fields": [
+              "table"
+            ],
+            "keepFields": false,
+            "naming": {
+              "asLabels": true
+            }
+          }
+        }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Live files by commit",
+      "description": "Data files in each table's snapshot after every commit: one more per chunk, then down to the ideal count when the versioner's maintenance runs OPTIMIZE.",
+      "datasource": {
+        "type": "grafana-clickhouse-datasource",
+        "uid": "dataflow-clickhouse"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "dataflow-clickhouse"
+          },
+          "editorType": "sql",
+          "format": 0,
+          "queryType": "timeseries",
+          "rawSql": "WITH log AS (\n    SELECT * FROM (\n        SELECT replaceRegexpOne(_path, '^[^/]+/(.+)/_delta_log/.*$', '\\\\1') AS path,\n               path AS table,\n               splitByChar('/', path)[1] AS layer,\n               splitByChar('/', path)[2] AS dataset,\n               toUInt64(extract(_file, '^(\\\\d+)\\\\.json$')) AS version,\n               json\n        FROM s3(lake, filename = '**/_delta_log/*.json', format = 'JSONAsString')\n    )\n    WHERE layer IN ('bronze', 'silver', 'history', 'quarantine', 'gold', 'reference') AND dataset IN (${dataset:singlequote})\n),\nadds AS (\n    SELECT table, layer, dataset, version, JSONExtractString(json, 'add', 'path') AS file, JSONExtractUInt(json, 'add', 'size') AS bytes,\n           JSONExtractRaw(json, 'add', 'partitionValues') AS part,\n           JSONExtractUInt(JSONExtractString(json, 'add', 'stats'), 'numRecords') AS records\n    FROM log WHERE JSONHas(json, 'add')\n),\nremoves AS (\n    SELECT table, file, min(version) AS removed_in\n    FROM (SELECT table, version, JSONExtractString(json, 'remove', 'path') AS file FROM log WHERE JSONHas(json, 'remove'))\n    GROUP BY table, file\n),\nfiles AS (\n    SELECT a.table, a.layer, a.dataset, a.version AS added_in, if(r.removed_in = 0, 18446744073709551615, r.removed_in) AS removed_in, a.bytes, a.records, a.part\n    FROM adds a LEFT JOIN removes r ON r.table = a.table AND r.file = a.file\n),\ncommits AS (\n    SELECT table, layer, dataset, version,\n           fromUnixTimestamp64Milli(JSONExtractInt(json, 'commitInfo', 'timestamp')) AS ts,\n           JSONExtractString(json, 'commitInfo', 'operation') AS operation,\n           JSONExtractRaw(json, 'commitInfo', 'operationMetrics') AS metrics,\n           JSONExtractString(json, 'commitInfo', 'operationParameters', 'predicate') AS predicate\n    FROM log WHERE JSONHas(json, 'commitInfo')\n)\nSELECT c.ts AS time, c.table AS table, countIf(f.added_in <= c.version AND f.removed_in > c.version) AS files\nFROM commits c LEFT JOIN files f ON f.table = c.table\nWHERE $__timeFilter(c.ts) AND c.layer IN ('bronze', 'silver', 'history', 'gold')\nGROUP BY c.table, c.version, c.ts ORDER BY time",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "drawStyle": "line",
+            "lineInterpolation": "stepAfter",
+            "lineWidth": 2,
+            "fillOpacity": 18,
+            "gradientMode": "opacity",
+            "showPoints": "always",
+            "pointSize": 5,
+            "spanNulls": true,
+            "stacking": {
+              "mode": "none",
+              "group": "A"
+            },
+            "axisBorderShow": false,
+            "barAlignment": 0,
+            "axisPlacement": "auto",
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            },
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            }
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "text",
+                "value": null
+              }
+            ]
+          },
+          "mappings": [],
+          "displayName": "${__field.labels.table}"
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "bronze"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#CD7F32"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "silver"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#C0C8D0"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "history"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#FF9830"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "quarantine"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#F2495C"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "gold"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#FADE2A"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "reference"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#8AB8FF"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": ".*bronze.*"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#CD7F32"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": ".*silver.*"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#C0C8D0"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": ".*history.*"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#FF9830"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": ".*quarantine.*"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#F2495C"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": ".*gold.*"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#FADE2A"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": ".*reference.*"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#8AB8FF"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "legend": {
+          "showLegend": true,
+          "displayMode": "list",
+          "placement": "bottom",
+          "calcs": []
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "id": 10,
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 8,
+        "y": 16
+      },
+      "transformations": [
+        {
+          "id": "partitionByValues",
+          "options": {
+            "fields": [
+              "table"
+            ],
+            "keepFields": false,
+            "naming": {
+              "asLabels": true
+            }
+          }
+        }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Commits per hour",
+      "description": "Delta commits per layer and hour: WRITE per chunk on bronze, silver and quarantine, MERGE per chunk on history, WRITE per run on gold and reference, plus OPTIMIZE / VACUUM from maintenance.",
+      "datasource": {
+        "type": "grafana-clickhouse-datasource",
+        "uid": "dataflow-clickhouse"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "dataflow-clickhouse"
+          },
+          "editorType": "sql",
+          "format": 0,
+          "queryType": "timeseries",
+          "rawSql": "WITH log AS (\n    SELECT * FROM (\n        SELECT replaceRegexpOne(_path, '^[^/]+/(.+)/_delta_log/.*$', '\\\\1') AS path,\n               path AS table,\n               splitByChar('/', path)[1] AS layer,\n               splitByChar('/', path)[2] AS dataset,\n               toUInt64(extract(_file, '^(\\\\d+)\\\\.json$')) AS version,\n               json\n        FROM s3(lake, filename = '**/_delta_log/*.json', format = 'JSONAsString')\n    )\n    WHERE layer IN ('bronze', 'silver', 'history', 'quarantine', 'gold', 'reference') AND dataset IN (${dataset:singlequote})\n),\nadds AS (\n    SELECT table, layer, dataset, version, JSONExtractString(json, 'add', 'path') AS file, JSONExtractUInt(json, 'add', 'size') AS bytes,\n           JSONExtractRaw(json, 'add', 'partitionValues') AS part,\n           JSONExtractUInt(JSONExtractString(json, 'add', 'stats'), 'numRecords') AS records\n    FROM log WHERE JSONHas(json, 'add')\n),\nremoves AS (\n    SELECT table, file, min(version) AS removed_in\n    FROM (SELECT table, version, JSONExtractString(json, 'remove', 'path') AS file FROM log WHERE JSONHas(json, 'remove'))\n    GROUP BY table, file\n),\nfiles AS (\n    SELECT a.table, a.layer, a.dataset, a.version AS added_in, if(r.removed_in = 0, 18446744073709551615, r.removed_in) AS removed_in, a.bytes, a.records, a.part\n    FROM adds a LEFT JOIN removes r ON r.table = a.table AND r.file = a.file\n),\ncommits AS (\n    SELECT table, layer, dataset, version,\n           fromUnixTimestamp64Milli(JSONExtractInt(json, 'commitInfo', 'timestamp')) AS ts,\n           JSONExtractString(json, 'commitInfo', 'operation') AS operation,\n           JSONExtractRaw(json, 'commitInfo', 'operationMetrics') AS metrics,\n           JSONExtractString(json, 'commitInfo', 'operationParameters', 'predicate') AS predicate\n    FROM log WHERE JSONHas(json, 'commitInfo')\n)\nSELECT toStartOfHour(ts) AS time, countIf(layer = 'bronze') AS bronze, countIf(layer = 'silver') AS silver,\n       countIf(layer = 'history') AS history, countIf(layer = 'quarantine') AS quarantine, countIf(layer = 'gold') AS gold,\n       countIf(layer = 'reference') AS reference\nFROM commits WHERE $__timeFilter(ts) GROUP BY time ORDER BY time",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "drawStyle": "bars",
+            "lineInterpolation": "stepAfter",
+            "lineWidth": 1,
+            "fillOpacity": 85,
+            "gradientMode": "opacity",
+            "showPoints": "never",
+            "pointSize": 5,
+            "spanNulls": true,
+            "stacking": {
+              "mode": "normal",
+              "group": "A"
+            },
+            "axisBorderShow": false,
+            "barAlignment": 0,
+            "axisPlacement": "auto",
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            },
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            }
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "text",
+                "value": null
+              }
+            ]
+          },
+          "mappings": []
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "bronze"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#CD7F32"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "silver"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#C0C8D0"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "history"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#FF9830"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "quarantine"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#F2495C"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "gold"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#FADE2A"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "reference"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#8AB8FF"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": ".*bronze.*"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#CD7F32"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": ".*silver.*"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#C0C8D0"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": ".*history.*"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#FF9830"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": ".*quarantine.*"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#F2495C"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": ".*gold.*"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#FADE2A"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": ".*reference.*"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#8AB8FF"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "legend": {
+          "showLegend": true,
+          "displayMode": "list",
+          "placement": "bottom",
+          "calcs": []
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "id": 11,
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 16,
+        "y": 16
+      }
+    },
+    {
+      "type": "piechart",
+      "title": "Operations",
+      "description": "Commit operations across the selected datasets: WRITE (chunk writes, gold and references), MERGE (history), OPTIMIZE / VACUUM (maintenance), schema evolution (ADD COLUMNS, SET TBLPROPERTIES).",
+      "datasource": {
+        "type": "grafana-clickhouse-datasource",
+        "uid": "dataflow-clickhouse"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "dataflow-clickhouse"
+          },
+          "editorType": "sql",
+          "format": 1,
+          "queryType": "table",
+          "rawSql": "WITH log AS (\n    SELECT * FROM (\n        SELECT replaceRegexpOne(_path, '^[^/]+/(.+)/_delta_log/.*$', '\\\\1') AS path,\n               path AS table,\n               splitByChar('/', path)[1] AS layer,\n               splitByChar('/', path)[2] AS dataset,\n               toUInt64(extract(_file, '^(\\\\d+)\\\\.json$')) AS version,\n               json\n        FROM s3(lake, filename = '**/_delta_log/*.json', format = 'JSONAsString')\n    )\n    WHERE layer IN ('bronze', 'silver', 'history', 'quarantine', 'gold', 'reference') AND dataset IN (${dataset:singlequote})\n),\nadds AS (\n    SELECT table, layer, dataset, version, JSONExtractString(json, 'add', 'path') AS file, JSONExtractUInt(json, 'add', 'size') AS bytes,\n           JSONExtractRaw(json, 'add', 'partitionValues') AS part,\n           JSONExtractUInt(JSONExtractString(json, 'add', 'stats'), 'numRecords') AS records\n    FROM log WHERE JSONHas(json, 'add')\n),\nremoves AS (\n    SELECT table, file, min(version) AS removed_in\n    FROM (SELECT table, version, JSONExtractString(json, 'remove', 'path') AS file FROM log WHERE JSONHas(json, 'remove'))\n    GROUP BY table, file\n),\nfiles AS (\n    SELECT a.table, a.layer, a.dataset, a.version AS added_in, if(r.removed_in = 0, 18446744073709551615, r.removed_in) AS removed_in, a.bytes, a.records, a.part\n    FROM adds a LEFT JOIN removes r ON r.table = a.table AND r.file = a.file\n),\ncommits AS (\n    SELECT table, layer, dataset, version,\n           fromUnixTimestamp64Milli(JSONExtractInt(json, 'commitInfo', 'timestamp')) AS ts,\n           JSONExtractString(json, 'commitInfo', 'operation') AS operation,\n           JSONExtractRaw(json, 'commitInfo', 'operationMetrics') AS metrics,\n           JSONExtractString(json, 'commitInfo', 'operationParameters', 'predicate') AS predicate\n    FROM log WHERE JSONHas(json, 'commitInfo')\n)\nSELECT operation, count() AS commits FROM commits GROUP BY operation ORDER BY commits DESC",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "mappings": [],
+          "custom": {
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            }
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "WRITE"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#5794F2"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "MERGE"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#FF9830"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "OPTIMIZE"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#73BF69"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "reduceOptions": {
+          "values": true,
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "/^commits$/"
+        },
+        "pieType": "donut",
+        "displayLabels": [
+          "percent"
+        ],
+        "legend": {
+          "showLegend": true,
+          "displayMode": "table",
+          "placement": "right",
+          "values": [
+            "value",
+            "percent"
+          ]
+        },
+        "tooltip": {
+          "mode": "single",
+          "sort": "none"
+        }
+      },
+      "id": 12,
+      "gridPos": {
+        "h": 8,
+        "w": 7,
+        "x": 0,
+        "y": 24
+      }
+    },
+    {
+      "type": "bargauge",
+      "title": "Average file size",
+      "description": "Mean size of live data files per table. Delta and Parquet read best around 128 MB to 1 GB per file; small files mean per-file overhead dominates.",
+      "datasource": {
+        "type": "grafana-clickhouse-datasource",
+        "uid": "dataflow-clickhouse"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "dataflow-clickhouse"
+          },
+          "editorType": "sql",
+          "format": 1,
+          "queryType": "table",
+          "rawSql": "WITH log AS (\n    SELECT * FROM (\n        SELECT replaceRegexpOne(_path, '^[^/]+/(.+)/_delta_log/.*$', '\\\\1') AS path,\n               path AS table,\n               splitByChar('/', path)[1] AS layer,\n               splitByChar('/', path)[2] AS dataset,\n               toUInt64(extract(_file, '^(\\\\d+)\\\\.json$')) AS version,\n               json\n        FROM s3(lake, filename = '**/_delta_log/*.json', format = 'JSONAsString')\n    )\n    WHERE layer IN ('bronze', 'silver', 'history', 'quarantine', 'gold', 'reference') AND dataset IN (${dataset:singlequote})\n),\nadds AS (\n    SELECT table, layer, dataset, version, JSONExtractString(json, 'add', 'path') AS file, JSONExtractUInt(json, 'add', 'size') AS bytes,\n           JSONExtractRaw(json, 'add', 'partitionValues') AS part,\n           JSONExtractUInt(JSONExtractString(json, 'add', 'stats'), 'numRecords') AS records\n    FROM log WHERE JSONHas(json, 'add')\n),\nremoves AS (\n    SELECT table, file, min(version) AS removed_in\n    FROM (SELECT table, version, JSONExtractString(json, 'remove', 'path') AS file FROM log WHERE JSONHas(json, 'remove'))\n    GROUP BY table, file\n),\nfiles AS (\n    SELECT a.table, a.layer, a.dataset, a.version AS added_in, if(r.removed_in = 0, 18446744073709551615, r.removed_in) AS removed_in, a.bytes, a.records, a.part\n    FROM adds a LEFT JOIN removes r ON r.table = a.table AND r.file = a.file\n),\ncommits AS (\n    SELECT table, layer, dataset, version,\n           fromUnixTimestamp64Milli(JSONExtractInt(json, 'commitInfo', 'timestamp')) AS ts,\n           JSONExtractString(json, 'commitInfo', 'operation') AS operation,\n           JSONExtractRaw(json, 'commitInfo', 'operationMetrics') AS metrics,\n           JSONExtractString(json, 'commitInfo', 'operationParameters', 'predicate') AS predicate\n    FROM log WHERE JSONHas(json, 'commitInfo')\n)\nSELECT table, round(avg(bytes)) AS avg_file\nFROM files WHERE removed_in = 18446744073709551615 GROUP BY table, layer, dataset ORDER BY dataset, indexOf(['bronze', 'silver', 'history', 'quarantine', 'gold', 'reference'], layer), table",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "bytes",
+          "min": 0,
+          "max": 134217728,
+          "displayName": "${__data.fields.table}",
+          "mappings": [],
+          "color": {
+            "mode": "continuous-RdYlGr"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "#F2495C",
+                "value": null
+              },
+              {
+                "color": "#73BF69",
+                "value": 67108864
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "values": true,
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": ""
+        },
+        "orientation": "horizontal",
+        "text": {
+          "titleSize": 16,
+          "valueSize": 22
+        },
+        "displayMode": "lcd",
+        "valueMode": "color",
+        "namePlacement": "left",
+        "showUnfilled": true,
+        "sizing": "auto",
+        "minVizWidth": 8,
+        "minVizHeight": 16,
+        "maxVizHeight": 300
+      },
+      "id": 13,
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 7,
+        "y": 24
+      }
+    },
+    {
+      "type": "row",
+      "title": "Commit log",
+      "collapsed": false,
+      "id": 15,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 32
+      },
+      "panels": []
+    },
+    {
+      "type": "table",
+      "title": "Recent commits",
+      "description": "The last 50 commits across the lake, newest first, straight from _delta_log: operation, rows written (numOutputRows, or inserted + updated for MERGE), files added and removed, execution time, and the predicate (replaceWhere for chunk writes, the join key for MERGE).",
+      "datasource": {
+        "type": "grafana-clickhouse-datasource",
+        "uid": "dataflow-clickhouse"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "dataflow-clickhouse"
+          },
+          "editorType": "sql",
+          "format": 1,
+          "queryType": "table",
+          "rawSql": "WITH log AS (\n    SELECT * FROM (\n        SELECT replaceRegexpOne(_path, '^[^/]+/(.+)/_delta_log/.*$', '\\\\1') AS path,\n               path AS table,\n               splitByChar('/', path)[1] AS layer,\n               splitByChar('/', path)[2] AS dataset,\n               toUInt64(extract(_file, '^(\\\\d+)\\\\.json$')) AS version,\n               json\n        FROM s3(lake, filename = '**/_delta_log/*.json', format = 'JSONAsString')\n    )\n    WHERE layer IN ('bronze', 'silver', 'history', 'quarantine', 'gold', 'reference') AND dataset IN (${dataset:singlequote})\n),\nadds AS (\n    SELECT table, layer, dataset, version, JSONExtractString(json, 'add', 'path') AS file, JSONExtractUInt(json, 'add', 'size') AS bytes,\n           JSONExtractRaw(json, 'add', 'partitionValues') AS part,\n           JSONExtractUInt(JSONExtractString(json, 'add', 'stats'), 'numRecords') AS records\n    FROM log WHERE JSONHas(json, 'add')\n),\nremoves AS (\n    SELECT table, file, min(version) AS removed_in\n    FROM (SELECT table, version, JSONExtractString(json, 'remove', 'path') AS file FROM log WHERE JSONHas(json, 'remove'))\n    GROUP BY table, file\n),\nfiles AS (\n    SELECT a.table, a.layer, a.dataset, a.version AS added_in, if(r.removed_in = 0, 18446744073709551615, r.removed_in) AS removed_in, a.bytes, a.records, a.part\n    FROM adds a LEFT JOIN removes r ON r.table = a.table AND r.file = a.file\n),\ncommits AS (\n    SELECT table, layer, dataset, version,\n           fromUnixTimestamp64Milli(JSONExtractInt(json, 'commitInfo', 'timestamp')) AS ts,\n           JSONExtractString(json, 'commitInfo', 'operation') AS operation,\n           JSONExtractRaw(json, 'commitInfo', 'operationMetrics') AS metrics,\n           JSONExtractString(json, 'commitInfo', 'operationParameters', 'predicate') AS predicate\n    FROM log WHERE JSONHas(json, 'commitInfo')\n)\nSELECT toUnixTimestamp64Milli(ts) AS time, layer, table, version, operation,\n       toUInt64OrZero(coalesce(nullIf(JSONExtractString(metrics, 'numOutputRows'), ''), nullIf(JSONExtractString(metrics, 'numTargetRowsInserted'), ''), '0'))\n         + toUInt64OrZero(JSONExtractString(metrics, 'numTargetRowsUpdated')) AS rows,\n       toUInt64OrZero(coalesce(nullIf(JSONExtractString(metrics, 'numFiles'), ''), nullIf(JSONExtractString(metrics, 'numAddedFiles'), ''), nullIf(JSONExtractString(metrics, 'numTargetFilesAdded'), ''), '0')) AS files_added,\n       toUInt64OrZero(coalesce(nullIf(JSONExtractString(metrics, 'numRemovedFiles'), ''), nullIf(JSONExtractString(metrics, 'numTargetFilesRemoved'), ''), '0')) AS files_removed,\n       toUInt64OrZero(JSONExtractString(metrics, 'executionTimeMs')) AS duration_ms,\n       trim(BOTH '[]\"' FROM replaceRegexpAll(predicate, '#\\d+', '')) AS predicate\nFROM commits ORDER BY ts DESC LIMIT 50",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            },
+            "inspect": false,
+            "filterable": true
+          },
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "text",
+                "value": null
+              }
+            ]
+          },
+          "mappings": []
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "time"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "dateTimeAsLocalNoDateIfToday"
+              },
+              {
+                "id": "custom.width",
+                "value": 170
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "layer"
+            },
+            "properties": [
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-text"
+                }
+              },
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "type": "value",
+                    "options": {
+                      "bronze": {
+                        "color": "#CD7F32",
+                        "index": 0
+                      }
+                    }
+                  },
+                  {
+                    "type": "value",
+                    "options": {
+                      "silver": {
+                        "color": "#C0C8D0",
+                        "index": 1
+                      }
+                    }
+                  },
+                  {
+                    "type": "value",
+                    "options": {
+                      "history": {
+                        "color": "#FF9830",
+                        "index": 2
+                      }
+                    }
+                  },
+                  {
+                    "type": "value",
+                    "options": {
+                      "quarantine": {
+                        "color": "#F2495C",
+                        "index": 3
+                      }
+                    }
+                  },
+                  {
+                    "type": "value",
+                    "options": {
+                      "gold": {
+                        "color": "#FADE2A",
+                        "index": 4
+                      }
+                    }
+                  },
+                  {
+                    "type": "value",
+                    "options": {
+                      "reference": {
+                        "color": "#8AB8FF",
+                        "index": 5
+                      }
+                    }
+                  }
+                ]
+              },
+              {
+                "id": "custom.width",
+                "value": 100
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "table"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 280
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "version"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 80
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "operation"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 110
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-text"
+                }
+              },
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "type": "value",
+                    "options": {
+                      "WRITE": {
+                        "color": "#5794F2",
+                        "index": 0
+                      },
+                      "MERGE": {
+                        "color": "#FF9830",
+                        "index": 1
+                      },
+                      "OPTIMIZE": {
+                        "color": "#73BF69",
+                        "index": 2
+                      },
+                      "VACUUM START": {
+                        "color": "#73BF69",
+                        "index": 3
+                      },
+                      "VACUUM END": {
+                        "color": "#73BF69",
+                        "index": 4
+                      },
+                      "ADD COLUMNS": {
+                        "color": "#B877D9",
+                        "index": 5
+                      },
+                      "SET TBLPROPERTIES": {
+                        "color": "#B877D9",
+                        "index": 6
+                      },
+                      "UPDATE": {
+                        "color": "#FADE2A",
+                        "index": 7
+                      }
+                    }
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "rows"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 90
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "files_added"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "files +"
+              },
+              {
+                "id": "custom.width",
+                "value": 80
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "files_removed"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "files −"
+              },
+              {
+                "id": "custom.width",
+                "value": 80
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "duration_ms"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "duration"
+              },
+              {
+                "id": "unit",
+                "value": "ms"
+              },
+              {
+                "id": "custom.width",
+                "value": 100
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "gauge",
+                  "mode": "basic",
+                  "valueDisplayMode": "text"
+                }
+              },
+              {
+                "id": "max",
+                "value": 10000
+              },
+              {
+                "id": "color",
+                "value": {
+                  "mode": "continuous-GrYlRd"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm",
+        "footer": {
+          "show": false,
+          "reducer": [
+            "sum"
+          ],
+          "countRows": false,
+          "fields": ""
+        }
+      },
+      "id": 16,
+      "gridPos": {
+        "h": 11,
+        "w": 24,
+        "x": 0,
+        "y": 33
+      }
+    }
+  ]
+}

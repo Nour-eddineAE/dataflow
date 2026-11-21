@@ -1,0 +1,226 @@
+nameOverride: dataflow
+images:
+  workspace: dataflow-workspace:latest
+  engine: dataflow-engine-k8s:latest
+global:
+  postgresqlSecretName: dataflow-secrets
+  serviceAccountName: dataflow-tower
+namespaces:
+  create: true
+  data: ""
+  jobs: ""
+lakeSecretName: dataflow-lake-secrets
+networkPolicies:
+  enabled: true
+lake:
+  root: s3a://lake
+  endpoint: ""
+  region: us-east-1
+  pathStyle: true
+  ssl: false
+releases:
+  bucket: releases
+  target: prod
+auth:
+  mode: none
+  issuer: ""
+  internal: ""
+  clientId: workspace
+  groupsClaim: groups
+  usernameClaim: preferred_username
+  admins: [admins]
+workspace:
+  replicas: 1
+  resources:
+    requests: {cpu: 100m, memory: 256Mi}
+    limits: {cpu: "1", memory: 768Mi}
+engine:
+  sourceTimeout: 10m
+  sourceConnectTimeout: 30s
+  servingTimeout: 10m
+  servingConnectTimeout: 10s
+spark:
+  serviceAccount: dataflow-engine
+  serviceAccountAnnotations: {}
+  driverTemplate: {}
+  executorTemplate: {}
+  driverMemory: 2g
+  executorMemory: 2g
+  driverCores: 1
+  executorCores: 1
+  minExecutors: 0
+  maxExecutors: 4
+  ttlSeconds: 600
+  startupTimeoutSeconds: 600
+  runTimeoutSeconds: 21600
+  memoryOverhead: 512m
+  cpuRequest: ""
+  singlePod: false
+computePolicy:
+  maxDriverMemory: ""
+  maxDriverCores: ""
+  maxExecutorMemory: ""
+  maxExecutorCores: ""
+  maxExecutors: ""
+postgres:
+  enabled: true
+  image: postgres:16.8
+  port: 5432
+  database: dataflow
+  storage: {size: 8Gi, storageClass: ""}
+  resources:
+    requests: {cpu: 100m, memory: 128Mi}
+    limits: {cpu: "1", memory: 512Mi}
+rustfs:
+  enabled: true
+  image: rustfs/rustfs:1.0.4
+  storage: {size: 16Gi, storageClass: ""}
+  env: {}
+  resources:
+    requests: {cpu: 100m, memory: 256Mi}
+    limits: {cpu: "1", memory: 768Mi}
+clickhouse:
+  enabled: true
+  image: clickhouse/clickhouse-server:26.10.2
+  host: ""
+  user: dataflow
+  storage: {size: 8Gi, storageClass: ""}
+  resources:
+    requests: {cpu: 100m, memory: 256Mi}
+    limits: {cpu: "2", memory: 1Gi}
+towerSignIn:
+  image: quay.io/oauth2-proxy/oauth2-proxy:v7.15.5
+  clientId: oauth2-proxy
+  allowedGroups: [admins]
+  resources:
+    requests: {cpu: 10m, memory: 32Mi}
+    limits: {cpu: 200m, memory: 64Mi}
+keycloak:
+  enabled: false
+  image: quay.io/keycloak/keycloak:26.7.5
+  resources:
+    requests: {cpu: 200m, memory: 512Mi}
+    limits: {cpu: "1", memory: 1Gi}
+localPorts:
+  enabled: false
+  workspace: 3080
+  tower: 3070
+  objectStore: 9100
+  objectStoreConsole: 9101
+  clickhouse: 8123
+quota:
+  enabled: true
+  hard:
+    requests.cpu: "8"
+    requests.memory: 16Gi
+    limits.cpu: "24"
+    limits.memory: 24Gi
+    pods: "32"
+gateway:
+  enabled: false
+  parentName: ""
+  parentNamespace: ""
+  hostname: ""
+externalSecrets:
+  enabled: false
+  storeName: ""
+  storeKind: ClusterSecretStore
+  data: []
+dagster:
+  rbacEnabled: false
+  computeLogManager:
+    type: CustomComputeLogManager
+    config:
+      customComputeLogManager:
+        module: dataflow_tower.compute_logs
+        class: LakeComputeLogManager
+        config:
+          bucket: {env: RELEASES_BUCKET}
+          prefix: system/compute-logs
+          upload_interval: 15
+  postgresql:
+    enabled: false
+    image: {registry: docker.io, repository: library/postgres, tag: "16.8", pullPolicy: IfNotPresent}
+    postgresqlHost: dataflow-postgres
+    postgresqlUsername: dataflow
+    postgresqlDatabase: dagster
+  generatePostgresqlPasswordSecret: false
+  generateCeleryConfigSecret: false
+  dagsterWebserver:
+    pathPrefix: /tower
+    readinessProbe:
+      httpGet: {path: /tower/server_info, port: 80}
+      periodSeconds: 20
+      timeoutSeconds: 10
+      failureThreshold: 3
+    envConfigMaps: [{name: dataflow-tower}]
+    envSecrets: [{name: dataflow-secrets}]
+    image: {repository: dataflow-tower-k8s, tag: latest, pullPolicy: IfNotPresent}
+    resources:
+      requests: {cpu: 100m, memory: 192Mi}
+      limits: {cpu: "1", memory: 512Mi}
+  dagsterDaemon:
+    envConfigMaps: [{name: dataflow-tower}]
+    envSecrets: [{name: dataflow-secrets}]
+    image: {repository: dataflow-tower-k8s, tag: latest, pullPolicy: IfNotPresent}
+    runRetries: {enabled: true, maxRetries: 1}
+    runMonitoring: {enabled: true, startTimeoutSeconds: 300, freeSlotsAfterRunEndSeconds: 60}
+    runCoordinator:
+      enabled: true
+      type: CustomRunCoordinator
+      config:
+        customRunCoordinator:
+          module: dagster._core.run_coordinator
+          class: QueuedRunCoordinator
+          config: {max_user_code_failure_retries: 5, user_code_failure_retry_delay: 60}
+    resources:
+      requests: {cpu: 100m, memory: 128Mi}
+      limits: {cpu: "1", memory: 384Mi}
+  serviceAccount: {create: false}
+  dagster-user-deployments:
+    rbacEnabled: false
+    serviceAccount: {create: false}
+    deployments:
+      - name: dataflow
+        image: {repository: dataflow-tower-k8s, tag: latest, pullPolicy: IfNotPresent}
+        codeServerArgs: [-m, dataflow_tower.definitions, --location-name, dataflow]
+        port: 4000
+        envConfigMaps: [{name: dataflow-tower}]
+        envSecrets: [{name: dataflow-secrets}]
+        volumes:
+          - name: definitions
+            configMap: {name: dataflow-tower-definitions}
+        volumeMounts:
+          - name: definitions
+            mountPath: /opt/dagster/app/src/dataflow_tower/defs/pipelines/defs.yaml
+            subPath: defs.yaml
+        includeConfigInLaunchedRuns: {enabled: true}
+        resources:
+          requests: {cpu: 100m, memory: 192Mi}
+          limits: {cpu: "1", memory: 512Mi}
+  runLauncher:
+    type: K8sRunLauncher
+    config:
+      k8sRunLauncher:
+        imagePullPolicy: IfNotPresent
+        envConfigMaps: [{name: dataflow-tower}]
+        envSecrets: [{name: dataflow-secrets}]
+        resources:
+          requests: {cpu: 100m, memory: 128Mi}
+          limits: {cpu: "1", memory: 512Mi}
+        runK8sConfig:
+          jobSpecConfig: {ttlSecondsAfterFinished: 600}
+  migrate:
+    enabled: true
+    initContainers:
+      - name: wait-for-postgres
+        image: postgres:16.8
+        imagePullPolicy: IfNotPresent
+        command: [sh, -c, "until pg_isready -h \"$POSTGRES_HOST\" -t 2; do sleep 2; done"]
+        env:
+          - {name: POSTGRES_HOST, value: dataflow-postgres}
+  telemetry: {enabled: false}
+  concurrency:
+    enabled: true
+    pools: {defaultLimit: 1}
+    runs: {maxConcurrentRuns: 4}

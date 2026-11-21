@@ -1,0 +1,8 @@
+project: Lab_Sensors
+targets:
+  prod:
+    mode: production
+  live:
+    mode: production
+    branch: "release..1"
+    compute: { executor-memory: lots }

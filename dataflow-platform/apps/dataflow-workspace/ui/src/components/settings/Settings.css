@@ -1,0 +1,165 @@
+.df-settings {
+    align-items: start;
+    display: grid;
+    gap: 48px;
+    grid-template-columns: 200px minmax(0, 1fr);
+}
+
+.df-settings-nav {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+    position: sticky;
+    top: 16px;
+}
+
+.df-settings-nav-group {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.df-settings-nav-title {
+    color: var(--mantine-color-dimmed);
+    font-size: var(--mantine-font-size-xs);
+    padding: 0 10px 4px;
+}
+
+.df-settings-link {
+    align-items: center;
+    border-radius: var(--mantine-radius-sm);
+    color: var(--mantine-color-text);
+    display: flex;
+    font-size: var(--mantine-font-size-md);
+    height: 32px;
+    padding: 0 10px;
+    transition: background-color var(--df-motion-fast) var(--df-ease);
+    width: 100%;
+}
+
+.df-settings-link:hover {
+    background: var(--df-hover);
+}
+
+.df-settings-link[aria-current] {
+    background: var(--df-active);
+    color: var(--df-active-text);
+    font-weight: 600;
+}
+
+.df-settings-main {
+    max-width: 760px;
+    min-width: 0;
+}
+
+.df-settings-head {
+    margin-bottom: 20px;
+}
+
+.df-settings-title {
+    font-size: var(--mantine-font-size-lg);
+    font-weight: 600;
+    line-height: 24px;
+    margin: 0;
+}
+
+.df-settings-main .df-section + .df-section {
+    margin-top: 32px;
+}
+
+
+.df-setting-row {
+    align-items: center;
+    border-bottom: 1px solid var(--df-border);
+    display: flex;
+    gap: 24px;
+    justify-content: space-between;
+    min-height: var(--df-row);
+    padding: 8px 0;
+}
+
+.df-setting-label {
+    align-items: center;
+    display: flex;
+    flex: 1;
+    font-size: var(--mantine-font-size-md);
+    font-weight: 500;
+    gap: 8px;
+    min-width: 0;
+}
+
+.df-setting-control {
+    align-items: center;
+    display: flex;
+    flex: none;
+    gap: 8px;
+    justify-content: flex-end;
+    max-width: 60%;
+    min-width: 0;
+}
+
+.df-setting-control > button {
+    flex: none;
+}
+
+.df-setting-value {
+    color: var(--mantine-color-text);
+    flex: 0 1 auto;
+    font-size: var(--mantine-font-size-sm);
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.df-setting-value[data-muted] {
+    color: var(--mantine-color-dimmed);
+}
+
+.df-settings-empty {
+    color: var(--mantine-color-dimmed);
+    font-size: var(--mantine-font-size-sm);
+}
+
+.df-setting-row .df-row-tool {
+    opacity: 0;
+    transition: opacity var(--df-motion-fast) var(--df-ease);
+}
+
+.df-setting-row:hover .df-row-tool,
+.df-setting-row .df-row-tool:focus-within {
+    opacity: 1;
+}
+
+.df-principal {
+    align-items: center;
+    display: inline-flex;
+    gap: 6px;
+}
+
+@media (max-width: 900px) {
+    .df-settings {
+        gap: 20px;
+        grid-template-columns: minmax(0, 1fr);
+    }
+
+    .df-settings-nav {
+        flex-direction: row;
+        gap: 16px;
+        overflow-x: auto;
+        position: static;
+    }
+
+    .df-settings-nav-group {
+        flex-direction: row;
+    }
+
+    .df-settings-nav-title {
+        display: none;
+    }
+
+    .df-settings-link {
+        white-space: nowrap;
+        width: auto;
+    }
+}

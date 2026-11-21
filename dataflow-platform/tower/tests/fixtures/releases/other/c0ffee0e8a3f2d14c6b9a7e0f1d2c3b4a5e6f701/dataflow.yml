@@ -1,0 +1,5 @@
+project: other
+targets:
+  prod:
+    mode: production
+    branch: main

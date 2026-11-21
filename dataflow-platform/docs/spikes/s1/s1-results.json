@@ -1,0 +1,86 @@
+[
+  {
+    "test": "versions",
+    "ok": true,
+    "seconds": 0,
+    "detail": "spark=4.2.0"
+  },
+  {
+    "test": "create table: timestamp_ntz + CDF + deletion vectors + CLUSTER BY",
+    "ok": true,
+    "seconds": 4.62,
+    "detail": "clustering=['factUniqueId'] features=['appendOnly', 'changeDataFeed', 'clustering', 'deletionVectors', 'domainMetadata', 'invariants', 'timestampNtz']"
+  },
+  {
+    "test": "append",
+    "ok": true,
+    "seconds": 1.8,
+    "detail": "rows=1000"
+  },
+  {
+    "test": "MERGE scd2 (100 changed, 50 new, 850 unchanged)",
+    "ok": true,
+    "seconds": 3.8,
+    "detail": "current=1050 closed=100 metrics={'numTargetRowsInserted': '150', 'numTargetRowsUpdated': '100', 'numTargetRowsCopied': '0', 'numDeletionVectorsAdded': None}"
+  },
+  {
+    "test": "change data feed read (batch)",
+    "ok": true,
+    "seconds": 0.27,
+    "detail": "{'update_postimage': 100, 'update_preimage': 100, 'insert': 150}"
+  },
+  {
+    "test": "OPTIMIZE (liquid clustering)",
+    "ok": true,
+    "seconds": 0.53,
+    "detail": "added=1 removed=7"
+  },
+  {
+    "test": "VACUUM RETAIN 0 HOURS",
+    "ok": true,
+    "seconds": 9.57,
+    "detail": "rows=1150 vacuumResultRows=1"
+  },
+  {
+    "test": "MERGE after OPTIMIZE leaves deletion vectors (for S2)",
+    "ok": true,
+    "seconds": 1.96,
+    "detail": "metrics={'numTargetRowsInserted': '20', 'numTargetRowsUpdated': '20', 'numTargetRowsCopied': '0', 'numDeletionVectorsAdded': None} files=9"
+  },
+  {
+    "test": "DELETE writes a deletion vector",
+    "ok": true,
+    "seconds": 0.56,
+    "detail": "{'numDeletionVectorsAdded': '1', 'numDeletedRows': '1', 'numCopiedRows': '0'}"
+  },
+  {
+    "test": "streaming read: Trigger.AvailableNow + s3a checkpoint, rerun reads nothing, append reads only new",
+    "ok": true,
+    "seconds": 3.01,
+    "detail": "first=500 rerun=0 afterAppend=100 total=600"
+  },
+  {
+    "test": "change feed streaming read with checkpoint",
+    "ok": true,
+    "seconds": 1.22,
+    "detail": "batchesSeen=[1169]"
+  },
+  {
+    "test": "foreachBatch idempotent write: txnAppId/txnVersion, batch replayed after lost commit",
+    "ok": true,
+    "seconds": 2.27,
+    "detail": "first=300 commitRemoved=True afterReplay=300 directTwice=[310, 310]"
+  },
+  {
+    "test": "load full taxi month into Delta on RustFS",
+    "ok": true,
+    "seconds": 2.42,
+    "detail": "rows=2964624 timestampTypes={'tpep_pickup_datetime': 'timestamp_ntz', 'tpep_dropoff_datetime': 'timestamp_ntz'}"
+  },
+  {
+    "test": "taxi history-shaped table: timestamp_ntz, CDF, DV, CLUSTER BY, __START_AT/__END_AT",
+    "ok": true,
+    "seconds": 5.49,
+    "detail": "{'rows': 2964624, 'numUpdatedRows': '676', 'dv': '3'}"
+  }
+]

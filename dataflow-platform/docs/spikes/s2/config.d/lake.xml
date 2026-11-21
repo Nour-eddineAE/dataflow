@@ -1,0 +1,14 @@
+<clickhouse>
+    <named_collections>
+        <lake>
+            <url>http://rustfs:9000/lake/</url>
+            <access_key_id from_env="RUSTFS_ACCESS_KEY"/>
+            <secret_access_key from_env="RUSTFS_SECRET_KEY"/>
+        </lake>
+        <minio>
+            <url>http://minio:9000/dataflow/</url>
+            <access_key_id from_env="MINIO_USER"/>
+            <secret_access_key from_env="MINIO_PASSWORD"/>
+        </minio>
+    </named_collections>
+</clickhouse>

@@ -1,0 +1,195 @@
+.mantine-AppShell-navbar {
+    transition-property: transform, top, height, width !important;
+}
+
+.df-logo {
+    color: var(--mantine-color-text);
+    display: block;
+}
+
+.df-sidebar {
+    overflow: hidden;
+}
+
+.df-sidebar .df-nav-link {
+    position: relative;
+    white-space: nowrap;
+}
+
+.df-nav-label {
+    min-width: 0;
+    overflow: hidden;
+    transition: opacity var(--df-motion-base) ease 40ms;
+    white-space: nowrap;
+}
+
+.df-sidebar[data-rail] .df-nav-label {
+    opacity: 0;
+    transition-delay: 0ms;
+}
+
+.df-nav-section {
+    position: relative;
+}
+
+.df-nav-foot {
+    border-top: 1px solid var(--df-border);
+    padding-top: 8px;
+}
+
+.df-nav-section::after {
+    background: var(--df-border);
+    bottom: 13px;
+    content: '';
+    height: 1px;
+    left: 8px;
+    opacity: 0;
+    position: absolute;
+    right: 8px;
+    transition: opacity var(--df-motion-base) ease;
+}
+
+.df-sidebar[data-rail] .df-nav-section::after {
+    opacity: 1;
+}
+
+.df-nav-new {
+    align-items: center;
+    background: var(--df-main);
+    border: 1px solid var(--df-border);
+    border-radius: var(--mantine-radius-md);
+    color: var(--mantine-color-text);
+    display: flex;
+    font-size: var(--mantine-font-size-sm);
+    font-weight: 500;
+    gap: 10px;
+    height: 32px;
+    margin-bottom: 8px;
+    overflow: hidden;
+    padding: 0 10px;
+    transition: background-color var(--df-motion-fast) ease, border-color var(--df-motion-fast) ease;
+    white-space: nowrap;
+    width: 100%;
+}
+
+.df-nav-new:hover {
+    background: var(--df-hover);
+}
+
+.df-nav-new svg {
+    flex: none;
+}
+
+.df-nav-health {
+    background: var(--mantine-color-dimmed);
+    border-radius: 50%;
+    flex: none;
+    height: 7px;
+    margin-left: auto;
+    transition: background-color var(--df-motion-base) ease;
+    width: 7px;
+}
+
+.df-nav-health[data-tone='up'] {
+    background: var(--df-success);
+}
+
+.df-nav-health[data-tone='down'] {
+    background: var(--df-danger);
+}
+
+.df-sidebar[data-rail] .df-nav-health {
+    left: 26px;
+    position: absolute;
+    top: 7px;
+}
+
+.df-apps {
+    display: grid;
+    gap: 4px;
+    grid-template-columns: repeat(3, 1fr);
+    padding: 2px 4px 6px;
+}
+
+.df-apps .df-app {
+    align-items: center;
+    border-radius: var(--mantine-radius-md);
+    color: var(--mantine-color-text);
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    padding: 12px 6px 10px;
+    text-align: center;
+    text-decoration: none;
+    transition: background-color var(--df-motion-fast) ease;
+}
+
+.df-apps .df-app:hover, .df-apps .df-app[data-hovered] {
+    background: var(--df-hover);
+    text-decoration: none;
+}
+
+.df-apps .df-app .mantine-Menu-itemLabel {
+    align-items: center;
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+}
+
+.df-app-icon {
+    align-items: center;
+    background: color-mix(in srgb, var(--df-app-tone) 16%, transparent);
+    border-radius: var(--mantine-radius-lg);
+    color: var(--df-app-tone);
+    display: flex;
+    height: 38px;
+    justify-content: center;
+    margin-bottom: 4px;
+    transition: background-color var(--df-motion-fast) ease;
+    width: 38px;
+}
+
+.df-app:hover .df-app-icon, .df-app[data-hovered] .df-app-icon {
+    background: color-mix(in srgb, var(--df-app-tone) 24%, transparent);
+}
+
+.df-app-name {
+    font-size: var(--mantine-font-size-xs);
+    font-weight: 500;
+}
+
+.df-app-hint {
+    color: var(--mantine-color-dimmed);
+    font-size: var(--mantine-font-size-caption);
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .df-nav-label, .df-nav-section::after, .df-nav-new, .df-nav-health {
+        transition: none;
+    }
+}
+
+.df-skip {
+    background: var(--df-main);
+    border: 1px solid var(--df-border-strong);
+    border-radius: var(--mantine-radius-md);
+    color: var(--mantine-color-text);
+    font-size: var(--mantine-font-size-sm);
+    left: 8px;
+    padding: 8px 12px;
+    position: fixed;
+    text-decoration: none;
+    top: 8px;
+    transform: translateY(-200%);
+    z-index: calc(var(--mantine-z-index-app) + 1);
+}
+
+.df-skip:focus-visible {
+    outline: 2px solid var(--df-focus);
+    outline-offset: 2px;
+    transform: none;
+}
+
+.df-surface:focus {
+    outline: none;
+}
